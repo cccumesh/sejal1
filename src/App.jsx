@@ -3871,6 +3871,7 @@ function mapGeminiCallType(reason) {
               ) : null}
 
               <div className="hud-side-dock absolute z-50 hud-inset-top hud-inset-right">
+                {arVrToggleButton}
                 {sideDockToggleButton}
                 {sideDockOpen ? (
                   <>
@@ -3888,7 +3889,6 @@ function mapGeminiCallType(reason) {
                         </svg>
                       </button>
                     ) : null}
-                    {arVrToggleButton}
                     {experienceViewMode === 'ar' ? cameraFlipButton : null}
                     {experienceViewMode === 'ar' ? flashButton : null}
                     {isVerified && jarvisUiReady
