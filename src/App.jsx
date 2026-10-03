@@ -474,7 +474,7 @@ function IntroLoadingScreen({
   onAutoRequestAccess,
   onGrantAccess,
 }) {
-  const [loadProgress, setLoadProgress] = useState(0)
+  const [loadProgress, setLoadProgress] = useState(10)
   const assetsReadyRef = useRef(false)
   const autoRequestedRef = useRef(false)
 
@@ -528,7 +528,7 @@ function IntroLoadingScreen({
         <div className="intro-loading__shade" aria-hidden />
         <div className="intro-loading__content">
           <h1 className="intro-loading__brand">Richera</h1>
-          <p className="intro-loading__credit">powered by axerai</p>
+          <p className="intro-loading__credit">powered by akxerai</p>
           <div className="intro-loading__bar" aria-hidden>
             <div className="intro-loading__bar-track">
               <div className="intro-loading__bar-fill" style={{ width: `${loadProgress}%` }} />

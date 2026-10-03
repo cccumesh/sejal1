@@ -34,7 +34,9 @@ export async function loadAxeraiExperienceAssets({ onProgress } = {}) {
   let doneWeight = 0
 
   const report = () => {
-    const pct = Math.min(99, Math.round((doneWeight / totalWeight) * 100))
+    // Start at 10% so the bar moves immediately when the link opens.
+    const raw = doneWeight / totalWeight
+    const pct = Math.min(99, 10 + Math.round(raw * 89))
     onProgress?.(pct)
   }
 
