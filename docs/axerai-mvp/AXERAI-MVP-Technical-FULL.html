@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Axerai MVP — Full Technical Reference</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root{--ink:#0a0e14;--ink-soft:#141c28;--surface:#fff;--surface-muted:#f1f5f9;--border:#dde4ed;--gold:#c9a227;--gold-light:#e8c547;--gold-bg:#fef9e7;--teal:#0d9488;--teal-bg:#ecfdf5;--blue:#2563eb;--blue-bg:#eff6ff;--rose:#be123c;--text:#1e293b;--text-muted:#64748b;--page-w:297mm;--page-h:210mm;--pad-x:14mm;--pad-y:11mm}
+    @page{size:297mm 210mm;margin:0}*{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"DM Sans",system-ui,sans-serif;background:#c8d0da;color:var(--text);line-height:1.5;font-size:8.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding-top:48px}
+    .toolbar{position:fixed;top:0;left:0;right:0;z-index:999;background:var(--ink);color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+    .toolbar button{background:linear-gradient(135deg,var(--gold-light),var(--gold));color:var(--ink);border:none;padding:9px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
+    .doc{margin:16px auto;width:var(--page-w)}
+    .page{width:var(--page-w);height:var(--page-h);background:var(--surface);position:relative;overflow:hidden;page-break-after:always;margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+    .page:last-child{page-break-after:auto;margin-bottom:0}
+    .page-inner{padding:var(--pad-y) var(--pad-x);height:100%;display:flex;flex-direction:column}
+    @media print{body{background:#fff;padding-top:0}.toolbar{display:none!important}.doc{margin:0;width:auto}.page{margin:0;box-shadow:none;height:var(--page-h)}@page{size:A4 landscape;margin:0}}
+    .page-cover{background:linear-gradient(125deg,#060a10 0%,#0f1824 35%,#152238 65%,#1a3050 100%);color:#fff;padding:0}
+    .cover-layout{position:relative;z-index:1;display:grid;grid-template-columns:1.1fr .9fr;height:100%;padding:16mm 18mm;gap:12mm}
+    .cover-left{display:flex;flex-direction:column;justify-content:center}
+    .cover-brand{display:flex;align-items:baseline;gap:14px;margin-bottom:24px;flex-wrap:wrap}
+    .cover-brand-name{font-size:38px;font-weight:700;letter-spacing:.06em;color:var(--gold-light);text-transform:uppercase}
+    .cover-brand-line{font-size:14px;font-style:italic;color:rgba(255,255,255,.75);font-family:"Instrument Serif",Georgia,serif}
+    .cover-brand-line::before{content:"—";margin-right:8px;color:var(--gold);font-style:normal}
+    .cover h1{font-family:"Instrument Serif",Georgia,serif;font-size:42px;font-weight:400;line-height:1.1;margin-bottom:12px}
+    .cover h1 em{font-style:italic;color:var(--gold-light)}
+    .cover-sub{font-size:12px;color:rgba(255,255,255,.82);max-width:420px;margin-bottom:18px;line-height:1.6}
+    .cover-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+    .cover-pill{background:rgba(255,255,255,.07);border:1px solid rgba(232,197,71,.35);padding:6px 12px;border-radius:6px;font-size:9px;font-weight:600;color:rgba(255,255,255,.92)}
+    .cover-meta{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,.12);padding-top:14px}
+    .cover-meta-item label{display:block;font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:3px}
+    .cover-meta-item strong{font-size:12px;color:var(--gold-light)}
+    .cover-right{display:flex;align-items:center;justify-content:center}
+    .cover-visual{width:100%;max-width:320px}
+    .page-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid var(--ink);flex-shrink:0}
+    .ph-brand{display:flex;align-items:baseline;gap:10px}
+    .ph-brand strong{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .ph-brand span{font-size:9px;color:var(--text-muted);font-style:italic;font-family:"Instrument Serif",Georgia,serif}
+    .ph-doc{font-size:7px;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase}
+    .page-body{flex:1;min-height:0;overflow:hidden}
+    .page-footer{flex-shrink:0;margin-top:auto;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:7pt;color:var(--text-muted)}
+    .section-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:var(--ink);color:var(--gold-light);font-size:10px;font-weight:700;border-radius:6px;margin-right:8px;flex-shrink:0}
+    h2{font-family:"Instrument Serif",Georgia,serif;font-size:20px;font-weight:400;color:var(--ink);margin:0 0 10px;display:flex;align-items:center}
+    h3{font-size:9px;font-weight:700;color:var(--ink);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.07em}
+    p{margin-bottom:6px}.lead{font-size:9.5pt;color:var(--text-muted);margin-bottom:10px}
+    table{width:100%;border-collapse:collapse;font-size:7.5pt;margin:8px 0}
+    th{background:var(--ink);color:#fff;font-weight:600;text-align:left;padding:5px 8px;font-size:7px;letter-spacing:.04em;text-transform:uppercase}
+    td{padding:4px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+    tr:nth-child(even) td{background:var(--surface-muted)}
+    .callout{border-left:3px solid var(--gold);background:var(--gold-bg);padding:8px 12px;border-radius:0 8px 8px 0;margin:8px 0;font-size:8pt}
+    .callout-teal{border-left-color:var(--teal);background:var(--teal-bg)}
+    .toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+    .toc{list-style:none}.toc li{display:flex;gap:8px;padding:5px 0;border-bottom:1px dotted var(--border);font-size:9pt}
+    .toc li span:first-child{color:var(--gold);font-weight:700;min-width:22px}
+    code{font-family:Consolas,monospace;font-size:7pt;background:var(--surface-muted);padding:1px 4px;border-radius:3px;color:var(--rose)}
+    .code-block{font-family:Consolas,monospace;font-size:6.5pt;background:var(--surface-muted);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+    ul.compact{margin:0 0 8px 16px;font-size:8pt}ul.compact li{margin-bottom:3px}
+    .layer-row{display:grid;grid-template-columns:68px 1fr;gap:8px;margin-bottom:6px}
+    .layer-badge{padding:6px 4px;border-radius:8px;text-align:center;font-weight:700;font-size:8px;line-height:1.3}
+    .layer-a{background:var(--teal);color:#fff}.layer-b{background:var(--blue);color:#fff}.layer-c{background:var(--ink-soft);color:#fff}
+    .layer-body{background:var(--surface-muted);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+    .layer-body h4{font-size:10px;margin-bottom:3px}.layer-body p{font-size:7.5pt;margin:0;color:var(--text-muted);line-height:1.4}
+    .diagram-wrap{background:var(--surface-muted);border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0}
+    .diagram-title{font-size:7px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;text-align:center}
+  </style>
+</head>
+<body>
+<div class="toolbar">
+  <span>Axerai MVP · FULL Technical Reference · Landscape A4</span>
+  <button type="button" onclick="window.print()">Download PDF</button>
+</div>
+<div class="doc">
+<div class="page page-cover"><div class="cover-layout">
+    <div class="cover-left">
+      <div class="cover-brand"><div class="cover-brand-name">Axerai</div><div class="cover-brand-line">Products receive digital life</div></div>
+      <h1>Full Technical<br /><em>Reference</em></h1>
+      <p class="cover-sub">Implementation bible — all modules, flows, env vars, APIs, ledger rules, and edge cases. Companion to the Overview PDF.</p>
+      <div class="cover-pills">
+        <span class="cover-pill">22 Sections</span><span class="cover-pill">Complete File Map</span><span class="cover-pill">Env + API Spec</span>
+        <span class="cover-pill">Verify + Ledger Deep Dive</span><span class="cover-pill">Example Code AXE-327T5</span>
+      </div>
+      <div class="cover-meta">
+        <div class="cover-meta-item"><label>Document Type</label><strong>Technical FULL</strong></div>
+        <div class="cover-meta-item"><label>Voice (Doc)</label><strong>Inworld API</strong></div>
+        <div class="cover-meta-item"><label>Version</label><strong>July 2026 Pilot</strong></div>
+        <div class="cover-meta-item"><label>Pair With</label><strong>AXERAI-MVP-Document.pdf</strong></div>
+      </div>
+    </div>
+    <div class="cover-right">
+      <svg class="cover-visual" viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg">
+        <rect width="400" height="280" fill="#0f1824" rx="12"/>
+        <text x="200" y="50" text-anchor="middle" font-size="14" fill="#e8c547" font-weight="700">IMPLEMENTATION MAP</text>
+        <rect x="30" y="70" width="160" height="36" rx="6" fill="#ecfdf5" stroke="#0d9488"/><text x="110" y="93" text-anchor="middle" font-size="9" fill="#1e293b">Intro + Preload</text>
+        <rect x="210" y="70" width="160" height="36" rx="6" fill="#ecfdf5" stroke="#0d9488"/><text x="290" y="93" text-anchor="middle" font-size="9" fill="#1e293b">MindAR + Layer A</text>
+        <rect x="30" y="120" width="160" height="36" rx="6" fill="#eff6ff" stroke="#2563eb"/><text x="110" y="143" text-anchor="middle" font-size="9" fill="#1e293b">Verify B + C</text>
+        <rect x="210" y="120" width="160" height="36" rx="6" fill="#eff6ff" stroke="#2563eb"/><text x="290" y="143" text-anchor="middle" font-size="9" fill="#1e293b">Gemini + Inworld</text>
+        <rect x="30" y="170" width="160" height="36" rx="6" fill="#fef9e7" stroke="#c9a227"/><text x="110" y="193" text-anchor="middle" font-size="9" fill="#1e293b">Ledger Memory</text>
+        <rect x="210" y="170" width="160" height="36" rx="6" fill="#fef9e7" stroke="#c9a227"/><text x="290" y="193" text-anchor="middle" font-size="9" fill="#1e293b">Admin Dashboard</text>
+        <text x="200" y="240" text-anchor="middle" font-size="10" fill="#94a3b8">App.jsx orchestrates · 25+ src modules</text>
+      </svg>
+    </div>
+  </div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Contents</div></div>
+<div class="page-body"><h2><span class="section-num">§</span>Contents — 22 Sections</h2>
+<div class="toc-grid">
+<ul class="toc">
+<li><span>01</span><span>What This MVP Is</span></li>
+<li><span>02</span><span>Technology Stack (Complete)</span></li>
+<li><span>03</span><span>Repository Structure</span></li>
+<li><span>04</span><span>End-to-End User Flow</span></li>
+<li><span>05</span><span>Intro Overlay &amp; Asset Preload</span></li>
+<li><span>06</span><span>AR / MindAR Configuration</span></li>
+<li><span>07</span><span>Three-Layer Verification (Product + Code)</span></li>
+<li><span>08</span><span>D3 Character — Model &amp; Animation</span></li>
+<li><span>09</span><span>Lip Sync Pipeline</span></li>
+<li><span>10</span><span>AI Brain — Google Gemini</span></li>
+<li><span>11</span><span>Voice — Inworld API</span></li>
+</ul>
+<ul class="toc">
+<li><span>12</span><span>Speech-to-Text &amp; Input Modes</span></li>
+<li><span>13</span><span>Supabase Ledger &amp; Memory</span></li>
+<li><span>14</span><span>Session Summaries &amp; KNOWN FACTS</span></li>
+<li><span>15</span><span>Admin Dashboard</span></li>
+<li><span>16</span><span>Environment Variables</span></li>
+<li><span>17</span><span>Netlify Deployment &amp; API Endpoints</span></li>
+<li><span>18</span><span>UI / CSS Components</span></li>
+<li><span>19</span><span>Error Handling Catalog</span></li>
+<li><span>20</span><span>Key Constants &amp; State Machine</span></li>
+<li><span>21</span><span>Security, VR Mode, Mobile Shell</span></li>
+<li><span>22</span><span>Build, Run &amp; Not in MVP</span></li>
+</ul>
+</div>
+<div class="callout"><strong>Note:</strong> This document uses generic MVP naming (D3 character, code <code>AXE-327T5</code>, Inworld voice). Codebase module names (myra*, elevenLabsTts.js) are cited as implementation paths only.</div></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 2</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Sections 01–02</div></div>
+<div class="page-body"><h2><span class="section-num">1</span>What This MVP Is</h2>
+<p class="lead">Browser-based, app-less WebAR platform turning physical packaging into a conversational digital touchpoint with persistent per-code memory.</p>
+<ul class="compact"><li>User opens URL → intro preload → camera grant → MindAR tracks image target on box.</li><li><strong>Layer A (fast):</strong> product visible → 3D persona appears immediately (Stage 1).</li><li><strong>Layers B + C (background):</strong> Gemini vision verifies brand/code on packaging + liveness anti-spoof → true/false stored.</li><li>Live mic STT → Gemini reply → Inworld TTS → D3 persona talks with lip-sync mouth morph.</li><li>Exit: session summary + KNOWN FACTS saved; Axerai AI + voice tokens logged per code.</li></ul>
+<h2><span class="section-num">2</span>Technology Stack (Complete)</h2>
+<table><tr><th>Layer</th><th>Technology</th><th>Version / Notes</th></tr><tr><td>Language</td><td>JavaScript ES modules</td><td>.js / .jsx — no TypeScript</td></tr><tr><td>UI</td><td>React + Vite + Tailwind</td><td>19.x / 8.x / 4.x</td></tr><tr><td>3D / AR</td><td>Three.js + MindAR</td><td>0.184 / mind-ar image tracking</td></tr><tr><td>Character</td><td>FBX Mixamo rig + morph targets</td><td>D3 persona on AR anchor</td></tr><tr><td>AI</td><td>Google Gemini SDK</td><td>gemini-3.1-flash-lite primary</td></tr><tr><td>Voice TTS</td><td>Inworld API (doc)</td><td>Custom cloned persona; browser TTS fallback</td></tr><tr><td>STT</td><td>Web Speech API</td><td>en-IN — Roman Hinglish intent</td></tr><tr><td>Database</td><td>Supabase PostgreSQL</td><td>ledger_threads table</td></tr><tr><td>Hosting</td><td>Netlify</td><td>Static dist/ + Node 20 functions</td></tr><tr><td>Lint</td><td>ESLint 10</td><td>npm run lint</td></tr></table></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 3</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 03</div></div>
+<div class="page-body"><h2><span class="section-num">3</span>Repository Structure</h2>
+<pre class="code-block">axerai-love/
+├── index.html                 SPA shell, mobile meta, viewport
+├── vite.config.js             React + Tailwind + three-mindar-shim
+├── tailwind.config.js
+├── netlify.toml               Build, Node 20, SPA redirect, functions/
+├── package.json
+├── scripts/verify-netlify-env.mjs   Pre-build secret leak guard
+├── public/
+│   ├── models/myra2.fbx       D3 character mesh (+ idle/talk FBX at runtime)
+│   ├── videos/target.mp4      Product card video on AR anchor
+│   ├── videos/intro.mp4       Optional intro media
+│   ├── images/*-loading.png   Intro splash background
+│   ├── targets.mind           MindAR image target (deploy asset)
+│   └── manifest.webmanifest
+├── netlify/functions/
+│   ├── gemini.mjs             Secure Gemini proxy
+│   └── elevenlabs-tts.mjs     TTS proxy (Inworld wiring in production doc)
+├── supabase/fresh_start.sql   Full schema + seed rows
+└── src/
+    ├── main.jsx               App vs AdminDashboard route split
+    ├── App.jsx                Main orchestrator (~3700 lines)
+    ├── AdminDashboard.jsx     Password insights UI
+    ├── index.css              AR HUD, intro, live mic, admin styles
+    ├── apiProxy.js            /.netlify/functions/* fetch helpers
+    ├── supabaseClient.js      Anon Supabase client
+    ├── geminiModels.js        Model chains + flash/lite routing
+    ├── geminiUsage.js         Token normalization from API responses
+    ├── axeraiAssets.js        Weighted intro preload
+    ├── myraModel.js           D3 load, animations, mouth morph
+    ├── myraLipSync.js         Audio → mouth level 0–1
+    ├── myraPrompt.js          Persona system prompt + user prompts
+    ├── myraSummarize.js       Exit summary + KNOWN FACTS extraction
+    ├── myraLedger.js          Supabase memory, pairing, token logs
+    ├── myraVerify.js          Gemini 3-layer vision verify
+    ├── myraErrorFallback.js   Offline in-character error lines
+    ├── myraTargetVideo.js     AR anchor product video plane
+    ├── myraStaticSession.jsx  VR static scene (no camera)
+    ├── elevenLabsTts.js       TTS module (Inworld integration layer)
+    ├── mobileBrowser.js       iOS/Android detection
+    ├── mobileShell.js         Portrait lock, gesture block
+    └── three-mindar-shim.js   Three.js encoding shim</pre></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 4</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 04</div></div>
+<div class="page-body"><h2><span class="section-num">4</span>End-to-End User Flow</h2>
+<h3>Phase A — Intro &amp; Permissions</h3>
+<ul class="compact"><li>User opens Netlify URL → <code>IntroShell</code> visible, <code>loadAxeraiExperienceAssets()</code> runs.</li><li>Weighted preload: D3 FBX (5), target.mp4 (2), targets.mind (1), splash image (1). Min splash 1200ms.</li><li>Progress bar reflects actual download — not fake timer.</li><li>Camera grant on user gesture (iOS requirement). Back/environment camera preferred.</li><li>Geolocation requested in background for regional slang in AI prompts.</li><li>Intro handoff animation → <code>main-reveal</code> crossfade to AR viewport.</li></ul>
+<h3>Phase B — AR Session &amp; Layer A</h3>
+<ul class="compact"><li><code>MindARThree</code> starts — reuses intro camera stream when possible.</li><li>User points at printed image target on packaging.</li><li><strong>Layer A fires:</strong> target found → anchor group live → product video on plane → D3 persona mounts.</li><li>Persona may show after target video phase; verify runs in parallel (background).</li><li>Torch toggle, camera flip available in HUD.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 5</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 04 cont.</div></div>
+<div class="page-body"><h2><span class="section-num">4</span>User Flow (continued)</h2>
+<h3>Phase C — Meet Character &amp; Audio Gate</h3>
+<ul class="compact"><li>First TTS on iPhone requires explicit tap (“Meet character”) — unlocks Web Audio session.</li><li><code>needsAudioTap</code> gate; separate unlock audio element never overwrites TTS src.</li><li>After unlock, subsequent lines auto-play.</li></ul>
+<h3>Phase D — Live Conversation</h3>
+<ul class="compact"><li>Default compose mode: <strong>liveMic</strong> — Web Speech API continuous recognition.</li><li>Interim transcript in liquid capsule UI; “Tap to fix” before auto-send.</li><li>Auto-send after <code>LIVE_MIC_SILENCE_MS = 2200</code> ms silence.</li><li>While AI thinks or speaks: mic <strong>fully released</strong> (not muted); live mic panel hidden.</li><li>Gemini reply → <code>prepareMyraSpeechText()</code> → Inworld TTS → lip sync + talk animation.</li><li><code>isTalking</code> true only on audio <code>onStart</code>, not when text arrives.</li><li>Alternate modes: <strong>keyboard</strong> text + image upload; PTT fingerprint button in compose bar.</li></ul>
+<h3>Phase E — Session End</h3>
+<ul class="compact"><li>User exits or <code>&lt;SYSTEM_SLEEP&gt;</code> token in Gemini reply triggers warm exit.</li><li><code>finishLedgerScan()</code> + <code>summarizeSessionDialogue()</code> via Gemini.</li><li>KNOWN FACTS merged into locked memory block.</li><li>Axerai AI tokens + voice tokens appended as JSON lines.</li><li>Next scan injects memory — persona does not re-ask locked facts.</li></ul>
+<div class="diagram-wrap"><div class="diagram-title">App State Machine (Simplified)</div>
+<pre class="code-block">introVisible → asset preload → camera grant → intro exit
+  → MindARSession → onTargetFound → target video → Layer A persona
+  → runAnchorVerify (once, locked) → ledger pairing → welcome
+  → liveMic|keyboard loop → exit → summarize → ledger save
+Parallel: AR|VR toggle · verifyLocked · needsAudioTap · torch</pre>
+</div></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 6</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 05</div></div>
+<div class="page-body"><h2><span class="section-num">5</span>Intro Overlay &amp; Asset Preload</h2>
+<p><strong>File:</strong> <code>axeraiAssets.js</code> + <code>IntroShell</code> in <code>App.jsx</code></p>
+<table><tr><th>Asset</th><th>Path</th><th>Weight</th><th>Purpose</th></tr><tr><td>D3 FBX bundle</td><td>preloadMyraModels()</td><td>5</td><td>Character + idle + talk clips</td></tr><tr><td>Target video</td><td>/videos/target.mp4</td><td>2</td><td>Product card on AR anchor</td></tr><tr><td>MindAR target</td><td>/targets.mind</td><td>1</td><td>Image tracking definition</td></tr><tr><td>Splash art</td><td>/images/*-loading.png</td><td>1</td><td>Branded loading background</td></tr></table>
+<ul class="compact"><li><code>MIN_SPLASH_MS = 1200</code> — minimum branded splash even if assets cache-fast.</li><li>Camera permission UI: tap ring, retry card (<code>.intro-access-*</code> CSS).</li><li>iOS strategy: getUserMedia on first pointerdown before audio/geo prompts.</li><li>Failed preload surfaces error state; user can retry grant.</li><li><code>logAxeraiBuildConfig()</code> logs env fingerprint on App mount (dev debug).</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 7</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 06</div></div>
+<div class="page-body"><h2><span class="section-num">6</span>AR / MindAR Configuration</h2>
+<table><tr><th>Setting</th><th>Value / Behavior</th></tr><tr><td>Target file</td><td><code>/targets.mind</code></td></tr><tr><td>Library</td><td><code>MindARThree</code> from mind-ar</td></tr><tr><td>UI chrome</td><td>uiLoading/uiScanning/uiError: 'no' — custom HUD only</td></tr><tr><td>Camera</td><td>Reuse intro stream via startMindARWithPreviewStream()</td></tr><tr><td>Anchor</td><td>Image target 0 → anchorGroup → video plane + D3 wrapper</td></tr><tr><td>Lighting</td><td>Ambient 1.4 + directional 2.5 + fill 1.2</td></tr><tr><td>Character scale</td><td>0.008 · position tuned to product anchor</td></tr><tr><td>Scan guide</td><td>HUD: “Center the product / brand card”</td></tr><tr><td>Teardown</td><td>softTeardownMindAR() keeps camera alive between sessions</td></tr><tr><td>VR mode</td><td>myraStaticSession.jsx — static art, no camera, same chat stack</td></tr></table>
+<h3>Target Video Phase</h3>
+<p><strong>File:</strong> <code>myraTargetVideo.js</code></p>
+<ul class="compact"><li>MP4 on anchor plane before or during persona reveal.</li><li>16s watchdog + Safari inline playback hacks.</li><li><code>TARGET_VIDEO_SAFETY_MS</code> force-advances stuck Safari playback.</li><li><code>targetVideoDone</code> gates welcome message scheduling.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 8</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 07</div></div>
+<div class="page-body"><h2><span class="section-num">7</span>Three-Layer Verification</h2>
+<div class="callout callout-teal"><strong>Product logic (patent):</strong> Layer A = fast visibility engine. Persona appears when product/target visible. Layers B + C run in background; return true/false without blocking Stage 1.</div>
+<div class="layer-row"><div class="layer-badge layer-a">A · FAST</div><div class="layer-body"><h4>Product Visibility Engine</h4><p><strong>Trigger:</strong> MindAR target found / product in frame.<br><strong>Action:</strong> Instant 3D persona on anchor (Stage 1).<br><strong>Implementation:</strong> MindAR onTargetFound — not a Gemini call.</p></div></div>
+<div class="layer-row"><div class="layer-badge layer-b">B · BG</div><div class="layer-body"><h4>Code / Brand Verification</h4><p><strong>Trigger:</strong> After Layer A — background frame capture.<br><strong>Action:</strong> Verify brand text / product code on packaging (e.g. <code>AXE-327T5</code>).<br><strong>Output:</strong> true = authentic · false = wrong/missing/unreadable.</p></div></div>
+<div class="layer-row"><div class="layer-badge layer-c">C · BG</div><div class="layer-body"><h4>Liveness / Anti-Spoof</h4><p><strong>Trigger:</strong> Parallel with B.<br><strong>Action:</strong> Detect real product vs photo-on-screen, monitor replay, print spoof.<br><strong>Output:</strong> true = live product · false = spoof.</p></div></div>
+<h3>Implementation Mapping (Gemini Vision — myraVerify.js)</h3>
+<table><tr><th>Gemini Layer</th><th>Maps To</th><th>Checks</th></tr><tr><td>LAYER1 brand text</td><td>Product Layer B</td><td>Full brand name visible — no partial guess</td></tr><tr><td>LAYER2 liveness</td><td>Product Layer C</td><td>Real card in hand vs screen/photo spoof</td></tr><tr><td>LAYER3 frame</td><td>Quality gate</td><td>Card centered, readable, not random background</td></tr></table></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 9</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 07 cont.</div></div>
+<div class="page-body"><h2><span class="section-num">7</span>Verification Implementation (continued)</h2>
+<h3>Single Gemini Call — Structured Output</h3>
+<pre class="code-block">LAYER1: PASS | FAIL
+LAYER2: PASS | FAIL
+LAYER3: PASS | FAIL
+RESULT: REAL | PHOTO_SPOOF | NO_BRAND | BAD_FRAME | UNCERTAIN
+
+REAL = all PASS → code assigned (e.g. AXE-327T5)
+PHOTO_SPOOF = LAYER2 FAIL (priority over others)
+NO_BRAND = LAYER1 FAIL
+BAD_FRAME = LAYER1 PASS + LAYER3 FAIL</pre>
+<h3>Pipeline</h3>
+<ul class="compact"><li>Trigger: mindarReady && showMindAR && !verifyLocked && !isVerified</li><li>Canvas snap from MindAR video → compressImageForVerify (max 768px JPEG 0.82)</li><li>Gemini via proxy · temperature 0 · VERIFY_MODEL_CHAIN · 1 retry</li><li><code>verifyLockedRef</code> — one attempt per AR session (pass or fail)</li><li>Verify fail: HUD note + in-character error via myraErrorFallback (not saved to ledger)</li><li>Persona visibility: continues after target video even if verify fails; verify gates ledger pairing</li></ul>
+<h3>Fail Reasons → UX</h3>
+<table><tr><th>RESULT</th><th>Situation Key</th><th>User Experience</th></tr><tr><td>PHOTO_SPOOF</td><td>SCAN_PHOTO_SPOOF</td><td>Persona line: not a real product</td></tr><tr><td>NO_BRAND</td><td>SCAN_CARD_NOT_FOUND</td><td>Brand/code not readable</td></tr><tr><td>BAD_FRAME</td><td>SCAN_BAD_FRAME</td><td>Re-center product in frame</td></tr><tr><td>UNCERTAIN</td><td>SCAN_GLITCH</td><td>Try again messaging</td></tr><tr><td>Pair full</td><td>SCAN_PAIR_FULL</td><td>3rd device blocked — 2 roles filled</td></tr></table></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 10</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Sections 08–09</div></div>
+<div class="page-body"><h2><span class="section-num">8</span>D3 Character — Model &amp; Animation</h2>
+<table><tr><th>Asset</th><th>Path</th><th>Purpose</th></tr><tr><td>Character mesh</td><td>/models/myra2.fbx</td><td>Skinned D3 persona</td></tr><tr><td>Idle</td><td>idle.fbx</td><td>Standing loop when silent</td></tr><tr><td>Talk clips</td><td>talking-4/5/6.fbx</td><td>Random while speaking</td></tr><tr><td>Placement</td><td>pos (0,-0.35,-0.15) scale 0.008</td><td>Tuned to packaging anchor</td></tr></table>
+<ul class="compact"><li>Three.js AnimationMixer on skinned mesh.</li><li>Idle ↔ Talk crossfade 0.35s — no hard stop (prevents T-pose flash).</li><li>Random talk clip; avoids same clip twice consecutively.</li><li>preloadMyraModels() + SkeletonUtils.clone() per session.</li><li>tickMyraMixer(anchorGroup, delta) every animation frame.</li></ul>
+<h2><span class="section-num">9</span>Lip Sync Pipeline</h2>
+<h3>Step 1 — Audio analysis (myraLipSync.js)</h3>
+<ul class="compact"><li>TTS &lt;audio&gt; → Web Audio AnalyserNode → mouth level 0 (closed) to 1 (open).</li><li>Mid-frequency speech band energy mapped to mouth openness.</li><li>iPhone: skip Web Audio graph → procedural sine mouth (protects audio session).</li><li>Smoothed per frame; eases closed on speech end.</li></ul>
+<h3>Step 2 — Mesh application (myraModel.js)</h3>
+<ul class="compact"><li><strong>Priority A:</strong> morph target <code>mouth open</code> (also mouthopen, jaw, lip keys).</li><li><strong>Priority B:</strong> head bone micro-tilt if no morph targets.</li><li>Smoothing factor 0.32 per frame on morph influence.</li><li>connectTtsAudio() / disconnectTtsAudio() on TTS lifecycle.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 11</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 10</div></div>
+<div class="page-body"><h2><span class="section-num">10</span>AI Brain — Google Gemini</h2>
+<h3>Model Chains (geminiModels.js)</h3>
+<table><tr><th>Use</th><th>Primary</th><th>Fallback</th></tr><tr><td>Chat</td><td>gemini-3.1-flash-lite</td><td>gemini-flash-lite-latest</td></tr><tr><td>Verify</td><td>same chain</td><td>same</td></tr><tr><td>Summary</td><td>same chain</td><td>same</td></tr></table>
+<h3>Flash vs Lite Tier Routing</h3>
+<ul class="compact"><li>Flash tier (temp 0.95): first 6 user turns, messages ≥150 words, welcome/boot/resume.</li><li>Lite tier (temp 0.85): default mid-session chat.</li><li>resolveMyraChatModels() returns models + tier + reason string for logging.</li></ul>
+<h3>Persona Prompt (myraPrompt.js)</h3>
+<ul class="compact"><li>Large MYRA_SYSTEM_PROMPT — Axerai Core Directive + character bible.</li><li>Output: casual Hinglish Roman script; emotion-first; no bot/API jargon.</li><li>Scenarios: retail browse, keepsake gift, sender/receiver gift flows.</li><li>buildMyraUserPrompt({ type: welcome|resume|reply|boot }) per turn.</li><li>KNOWN FACTS (LOCKED) block injected from ledger — no re-ask name/gift-for/occasion.</li><li>Inworld path: sparse audio tags [laughs softly] stripped from ledger text.</li></ul>
+<h3>Call Types Logged</h3>
+<table><tr><th>callType</th><th>When</th></tr><tr><td>verify</td><td>3-layer vision frame check</td></tr><tr><td>welcome</td><td>First greeting after scan</td></tr><tr><td>chat</td><td>User message reply</td></tr><tr><td>summary</td><td>Session exit summarization</td></tr></table></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 12</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 11</div></div>
+<div class="page-body"><h2><span class="section-num">11</span>Voice — Inworld API</h2>
+<div class="callout"><strong>MVP documentation voice:</strong> Inworld TTS with custom cloned brand persona. Integration module in codebase: <code>elevenLabsTts.js</code> + <code>elevenlabs-tts.mjs</code> proxy. Browser speechSynthesis is fallback.</div>
+<h3>Configuration</h3>
+<table><tr><th>Env (local)</th><th>Purpose</th></tr><tr><td>VITE_INWORLD_ENABLED=true</td><td>Enable cloud voice</td></tr><tr><td>VITE_INWORLD_VOICE_ID</td><td>Cloned persona voice ID</td></tr></table>
+<table><tr><th>Env (Netlify server)</th><th>Purpose</th></tr><tr><td>INWORLD_API_KEY</td><td>Server-side only — never in browser bundle</td></tr><tr><td>INWORLD_VOICE_ID</td><td>Default voice for proxy</td></tr></table>
+<h3>TTS Flow</h3>
+<ul class="compact"><li>1. Gemini text → prepareMyraSpeechText() — strip markdown/emojis.</li><li>2. PROD: POST /.netlify/functions/inworld-tts (proxy) → MP3 blob.</li><li>3. Hidden &lt;audio&gt; playback → connectTtsAudio() → lip sync.</li><li>4. Response header X-Axerai-Characters → voice token log.</li><li>5. Failure → pickMyraVoice() browser speechSynthesis (Swara/hi/en-IN priority).</li><li>6. MYRA_TTS_SAFETY_MS = 35000 — recovery if TTS hangs.</li></ul>
+<h3>iPhone / Safari Critical Rules</h3>
+<ul class="compact"><li>Separate unlock audio element — never overwrite active TTS src.</li><li>First line deferred until Meet-character tap (user gesture).</li><li>Silent oscillator keep-alive on iOS only.</li><li>Mic fully released during TTS — prevents echo + Android STT conflict.</li><li>primeSafariSpeechSynthesis() + unlockMobileSpeechAudio() on first touch.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 13</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 12</div></div>
+<div class="page-body"><h2><span class="section-num">12</span>Speech-to-Text &amp; Input Modes</h2>
+<table><tr><th>Setting</th><th>Value</th></tr><tr><td>API</td><td>Browser Web Speech API</td></tr><tr><td>Language</td><td>en-IN (Roman Hinglish intent — avoid hi-IN Devanagari)</td></tr><tr><td>Auto-send silence</td><td>LIVE_MIC_SILENCE_MS = 2200</td></tr><tr><td>Voice energy threshold</td><td>LIVE_MIC_VOICE_ENERGY = 20</td></tr><tr><td>Vision upload</td><td>GEMINI_VISION_ENABLED = false (UI exists, disabled)</td></tr></table>
+<h3>Tap to Fix</h3>
+<ul class="compact"><li>Transcript tappable → edit mode with textarea + Send / Cancel.</li><li>Auto-send timer paused while editing; STT onresult ignored.</li><li>Cancel restores silence timer or restarts mic.</li></ul>
+<h3>Compose Modes (App.jsx)</h3>
+<table><tr><th>Mode</th><th>UI</th><th>Behavior</th></tr><tr><td>liveMic (default)</td><td>Liquid capsule + voice visualizer</td><td>Continuous STT → auto-send</td></tr><tr><td>keyboard</td><td>Text field + optional image</td><td>Manual send; PTT fingerprint in bar</td></tr><tr><td>HUD toggle</td><td>Keyboard / mic icons</td><td>Switch modes mid-session</td></tr></table>
+<h3>Android Mic Rule</h3>
+<p>Do not hold getUserMedia for level meter while STT active — steals mic from recognition. Use procedural level animation instead.</p></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 14</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Sections 13–14</div></div>
+<div class="page-body"><h2><span class="section-num">13</span>Supabase Ledger &amp; Memory</h2>
+<p><strong>Table:</strong> <code>ledger_threads</code> — max 2 rows per product code (sender + receiver). Schema: <code>supabase/fresh_start.sql</code></p>
+<table><tr><th>Column</th><th>Type</th><th>Purpose</th></tr><tr><td>verification_code</td><td>text</td><td>Product code e.g. AXE-327T5</td></tr><tr><td>device_id</td><td>text</td><td>Stable browser ID (localStorage + 5yr cookie)</td></tr><tr><td>role</td><td>text</td><td>sender | receiver</td></tr><tr><td>scan_count</td><td>int</td><td>Completed scans on this thread</td></tr><tr><td>conversation</td><td>text</td><td>Full chat with session markers</td></tr><tr><td>session_summaries</td><td>text</td><td>Exit summaries + FACTS per scan</td></tr><tr><td>axerai_ai_usage</td><td>text</td><td>JSON lines — Gemini tokens</td></tr><tr><td>axerai_voice_usage</td><td>text</td><td>JSON lines — Inworld characters</td></tr></table>
+<h3>Device Pairing Rules</h3>
+<ul class="compact"><li>First device on code → sender thread. Second distinct device → receiver.</li><li>Third device when both roles filled → SCAN_PAIR_FULL (blocked).</li><li>resolveSessionAccess() determines role before welcome.</li><li>Welcome modes: SENDER_FIRST, SENDER_RETURN, RECEIVER_FIRST, RECEIVER_RETURN.</li></ul>
+<h2><span class="section-num">14</span>Session Summaries &amp; KNOWN FACTS</h2>
+<p><strong>File:</strong> <code>myraSummarize.js</code></p>
+<ul class="compact"><li>Exit: summarizeSessionDialogue() via Gemini — FACTS / STORY / OPEN HOOK / BRAND PRAISE format.</li><li>extractFactsFromSummary() → mergeKnownFacts() → formatKnownFactsBlock().</li><li>buildGeminiMemoryText() injects locked facts + past story into next session prompt.</li><li>Offline myraErrorFallback lines NEVER saved to ledger.</li><li>Session markers: --- session N start/end --- in conversation column.</li></ul>
+<h3>Usage JSON Line Examples</h3>
+<pre class="code-block">{"at":"ISO8601","call":"chat","model":"gemini-3.1-flash-lite","prompt":4200,"output":180,"total":4380}
+{"at":"ISO8601","call":"tts","model":"inworld-tts","voice":"persona-id","chars":287}</pre></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 15</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 15</div></div>
+<div class="page-body"><h2><span class="section-num">15</span>Admin Dashboard</h2>
+<p><strong>File:</strong> <code>AdminDashboard.jsx</code> · <strong>Route:</strong> <code>/{VITE_DASHBOARD_PATH}</code> (default <code>axerai-insights-7k2m</code>)</p>
+<ul class="compact"><li>Routed in main.jsx by pathname or hash — skips mobile shell init.</li><li>Password gate: VITE_DASHBOARD_PASSWORD → sessionStorage auth.</li><li>Per-code filter (default seed: AXE-327T5 in doc / pilot codes in DB).</li><li>Panels: scan analytics, conversation bubble parse, duration formatting.</li><li>buildGeminiUsageAnalytics() — totals by call type, per-entry table.</li><li>buildElevenLabsUsageAnalytics() — voice character totals (Inworld in doc).</li><li>Brand product praise parsed from session summaries.</li><li>Refresh + logout controls.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 16</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Sections 16–17</div></div>
+<div class="page-body"><h2><span class="section-num">16</span>Environment Variables</h2>
+<h3>Local Development (.env)</h3>
+<pre class="code-block">VITE_GEMINI_API_KEY=          # Direct Gemini in dev
+VITE_INWORLD_ENABLED=true
+VITE_INWORLD_VOICE_ID=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_DASHBOARD_PATH=axerai-insights-7k2m
+VITE_DASHBOARD_PASSWORD=</pre>
+<h3>Netlify Production (server — NOT in browser bundle)</h3>
+<pre class="code-block">GEMINI_API_KEY=               # Required — build fails without
+INWORLD_API_KEY=              # Inworld TTS server key
+INWORLD_VOICE_ID=
+NODE_VERSION=20
+VITE_SUPABASE_URL=            # OK in client
+VITE_SUPABASE_ANON_KEY=       # OK in client
+VITE_DASHBOARD_PATH=
+VITE_DASHBOARD_PASSWORD=</pre>
+<div class="callout"><strong>Build guard:</strong> verify-netlify-env.mjs blocks VITE_GEMINI_API_KEY and VITE_INWORLD_API_KEY on Netlify — secrets must use server keys only.</div>
+<h2><span class="section-num">17</span>Netlify Deployment &amp; API Endpoints</h2>
+<table><tr><th>Item</th><th>Value</th></tr><tr><td>Build cmd</td><td>node scripts/verify-netlify-env.mjs && npm run build</td></tr><tr><td>Publish</td><td>dist/</td></tr><tr><td>Node</td><td>20</td></tr><tr><td>SPA</td><td>/* → /index.html status 200</td></tr></table>
+<table><tr><th>Endpoint</th><th>Method</th><th>Body / Response</th></tr><tr><td>/.netlify/functions/gemini</td><td>GET</td><td>Health / key fingerprint</td></tr><tr><td>/.netlify/functions/gemini</td><td>POST</td><td>userPrompt, systemInstruction, models[], imagePart?, generationConfig</td></tr><tr><td>/.netlify/functions/inworld-tts</td><td>POST</td><td>text, voiceId? → MP3 + X-Axerai-Characters header</td></tr></table>
+<p>Local dev: USE_API_PROXY false when not PROD — direct SDK with VITE_GEMINI_API_KEY.</p></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 17</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Sections 18–19</div></div>
+<div class="page-body"><h2><span class="section-num">18</span>UI / CSS Components (index.css)</h2>
+<table><tr><th>Class prefix</th><th>Purpose</th></tr><tr><td>.intro-* / .intro-access-*</td><td>Intro shell, camera permission tap ring</td></tr><tr><td>.myra-live-mic-*</td><td>Live mic panel, capsule, voice energy (~230 lines)</td></tr><tr><td>.myra-live-mic-edit</td><td>Tap-to-fix edit UI</td></tr><tr><td>.hud-*</td><td>AR overlay: scan guide, verify note, side dock, AR/VR toggle</td></tr><tr><td>.axerai-audio-tap</td><td>Meet character iOS unlock button</td></tr><tr><td>.compose-* / .myra-ptt-*</td><td>Keyboard compose + fingerprint PTT</td></tr><tr><td>.admin-dash__*</td><td>Dashboard layout and analytics tables</td></tr><tr><td>.main-reveal</td><td>Intro → AR crossfade animation</td></tr></table>
+<h2><span class="section-num">19</span>Error Handling Catalog</h2>
+<p><strong>File:</strong> <code>myraErrorFallback.js</code></p>
+<table><tr><th>Phase</th><th>Situations</th></tr><tr><td>SCAN</td><td>SCAN_CARD_NOT_FOUND, SCAN_PHOTO_SPOOF, SCAN_BAD_FRAME, SCAN_GLITCH, SCAN_PAIR_FULL, SCAN_MAGIC_ASLEEP</td></tr><tr><td>WELCOME</td><td>WELCOME_MAGIC_OFF, WELCOME_QUOTA, WELCOME_CONNECTION_WEAK, WELCOME_BUSY, WELCOME_GLITCH</td></tr><tr><td>CHAT</td><td>CHAT_QUOTA, CHAT_CONNECTION_WEAK, CHAT_BUSY, CHAT_GLITCH</td></tr><tr><td>INPUT</td><td>NO_SPEECH, MIC_BLOCKED, PHOTO_FAIL</td></tr></table>
+<ul class="compact"><li>pickMyraErrorLine(situation) — random in-character Hinglish; no repeat same session.</li><li>classifyGeminiError() maps API errors to situations.</li><li>Silent errors (no TTS): NO_SPEECH, CHAT_GLITCH, CHAT_QUOTA.</li><li>MYRA_ERROR_REPEAT_RISK: high/medium/low/once per situation.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 18</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Sections 20–21</div></div>
+<div class="page-body"><h2><span class="section-num">20</span>Key Constants &amp; State Machine</h2>
+<table><tr><th>Constant</th><th>Value</th><th>Meaning</th></tr><tr><td>MINDAR_TARGET</td><td>/targets.mind</td><td>AR target file</td></tr><tr><td>SPEECH_RECO_LANG</td><td>en-IN</td><td>STT language</td></tr><tr><td>LIVE_MIC_SILENCE_MS</td><td>2200</td><td>Auto-send delay</td></tr><tr><td>LIVE_MIC_VOICE_ENERGY</td><td>20</td><td>Mic level threshold</td></tr><tr><td>MYRA_TTS_SAFETY_MS</td><td>35000</td><td>Max TTS wait before recovery</td></tr><tr><td>GEMINI_VISION_ENABLED</td><td>false</td><td>User photo to Gemini in chat off</td></tr><tr><td>GEMINI_RETRIES_PER_MODEL</td><td>2</td><td>API retry count</td></tr><tr><td>MYRA_FLASH_USER_TURNS</td><td>6</td><td>Flash tier turn count</td></tr><tr><td>MIN_SPLASH_MS</td><td>1200</td><td>Intro minimum display</td></tr></table>
+<h2><span class="section-num">21</span>Security, VR Mode, Mobile Shell</h2>
+<h3>Security Model</h3>
+<ul class="compact"><li>3-layer verify + one cycle per session.</li><li>API keys server-side in production.</li><li>Supabase RLS: anon insert/select/update on ledger_threads (pilot — tighten at scale).</li><li>Dashboard: secret path + password, sessionStorage only.</li><li>Device ID = continuity, not authentication.</li><li>Per-code usage caps (pilot policy) — soft exit ~200–300 voice tokens remain.</li><li>Patent-pending multi-layer verification architecture.</li></ul>
+<h3>VR Mode &amp; Mobile Shell</h3>
+<ul class="compact"><li>experienceViewMode: ar | vr — toggle in HUD.</li><li>VR: MyraStaticSession — static brand art background, same chat/voice stack.</li><li>mobileShell.js: portrait orientation lock, block pinch/double-tap zoom, select prevention.</li><li>mobileBrowser.js: iOS detection drives lip sync + audio unlock paths.</li></ul></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 19</span></div>
+</div></div>
+<div class="page"><div class="page-inner">
+<div class="page-header"><div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div><div class="ph-doc">Section 22</div></div>
+<div class="page-body"><h2><span class="section-num">22</span>Per-Code Budget, Build &amp; Not in MVP</h2>
+<h3>Pilot Budget Packages (Example AXE-327T5)</h3>
+<table><tr><th>Package</th><th>Time</th><th>AI Tokens</th><th>Voice Tokens</th></tr><tr><td>Light</td><td>~12 min</td><td>~59,000</td><td>~4,000</td></tr><tr><td>Standard</td><td>~30 min</td><td>~1.5L</td><td>~10,000</td></tr><tr><td>Deep</td><td>~60 min</td><td>~2.9L</td><td>~20,000</td></tr></table>
+<p>Policy: when ~200–300 voice tokens remain → persona warm exit line → session ends for that code. (Pricing model — enforcement configurable per pilot.)</p>
+<h3>Build &amp; Run</h3>
+<pre class="code-block">npm install
+npm run dev          # localhost Vite
+npm run build        # production dist/
+npm run preview
+npm run lint
+
+Fresh DB: Supabase SQL Editor → run supabase/fresh_start.sql only</pre>
+<h3>Not in MVP Yet</h3>
+<ul class="compact"><li>Self-serve brand dashboard (upload persona, register products).</li><li>Inworld STS full speech-to-speech pipeline.</li><li>Google Cloud STT (browser only today).</li><li>Own GPU inference server (future scale path documented in pricing docs).</li><li>Multi-tenant brand admin.</li><li>Native app store application.</li></ul>
+<div class="callout" style="margin-top:12px;"><strong>One-line definition:</strong> Axerai MVP = scan packaging → Layer A instant persona → background B/C verify → Gemini conversation with ledger memory → Inworld voice with lip-sync → Axerai AI + voice tokens per code <code>AXE-327T5</code>.</div>
+<p style="margin-top:10px;font-size:8pt;color:#64748b;">End of Full Technical Reference. Companion overview: AXERAI-MVP-Document.pdf. No application code modified by this document.</p></div>
+<div class="page-footer"><span>Axerai MVP · Full Technical Reference · Confidential</span><span>Page 20</span></div>
+</div></div>
+</div>
+</body>
+</html>

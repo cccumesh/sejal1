@@ -1,0 +1,1557 @@
+import {
+  connectTtsAudio,
+  disconnectTtsAudio,
+  startSpeechLipSync,
+  stopSpeechLipSync,
+  setTtsPlaybackGain,
+} from './myraLipSync.js'
+import { USE_API_PROXY, requestElevenLabsViaProxy, requestInworldViaProxy } from './apiProxy.js'
+import { isAppleMobileBrowser } from './mobileBrowser.js'
+import { recordElevenLabsUsage } from './myraLedger.js'
+
+const ELEVENLABS_API_KEY = String(import.meta.env.VITE_ELEVENLABS_API_KEY ?? '').trim()
+const ELEVENLABS_VOICE_ID = String(import.meta.env.VITE_ELEVENLABS_VOICE_ID ?? '').trim()
+const ELEVENLABS_MODEL = 'eleven_v3'
+
+/** ElevenLabs voice tuning — 1.0 = native speed. */
+const ELEVENLABS_VOICE_SETTINGS = {
+  stability: 0.5,
+  similarity_boost: 0.75,
+  speed: 1.0,
+}
+const INWORLD_API_KEY = String(import.meta.env.VITE_INWORLD_API_KEY ?? '').trim()
+const INWORLD_VOICE_ID = String(import.meta.env.VITE_INWORLD_VOICE_ID ?? '').trim()
+const INWORLD_MODEL = 'inworld-tts-2'
+
+/** Inworld synthesis speed — 1.0 = native; range 0.5–1.5 (env: VITE_INWORLD_SPEAKING_RATE). */
+const INWORLD_SPEAKING_RATE = (() => {
+  const raw = Number(import.meta.env.VITE_INWORLD_SPEAKING_RATE ?? 1.2)
+  return Number.isFinite(raw) ? Math.min(1.5, Math.max(0.5, raw)) : 1.2
+})()
+
+/** Myra TTS loudness — 1.4 = +40% over source MP3 (env: VITE_TTS_PLAYBACK_GAIN). */
+const TTS_PLAYBACK_GAIN = (() => {
+  const raw = Number(import.meta.env.VITE_TTS_PLAYBACK_GAIN ?? 1.4)
+  return Number.isFinite(raw) ? Math.min(3, Math.max(1, raw)) : 1.4
+})()
+
+setTtsPlaybackGain(TTS_PLAYBACK_GAIN)
+
+function isInworldEnabledFlag() {
+  return String(import.meta.env.VITE_INWORLD_ENABLED ?? '').trim().toLowerCase() === 'true'
+}
+
+function isInworldConfigured() {
+  if (!isInworldEnabledFlag()) return false
+  if (USE_API_PROXY) return true
+  return Boolean(INWORLD_API_KEY)
+}
+
+function activeTtsProvider() {
+  return isInworldConfigured() ? 'inworld' : 'elevenlabs'
+}
+
+/** Cloud TTS (Inworld or ElevenLabs) — uses server/browser voice instead of Web Speech. */
+export function isCloudTtsConfigured() {
+  return isElevenLabsConfigured()
+}
+
+/** Inworld TTS-2 — [laugh]/[sigh] bracket tags are performance cues here only. */
+export function isInworldTtsConfigured() {
+  return isInworldConfigured()
+}
+
+/** Keep [laugh]/[sigh] in speech text only for Inworld — ElevenLabs/browser read brackets aloud. */
+export function shouldKeepMyraTtsAudioTags() {
+  return isInworldConfigured()
+}
+
+export function getActiveTtsProvider() {
+  return activeTtsProvider()
+}
+
+function activeTtsModel() {
+  return isInworldConfigured() ? INWORLD_MODEL : ELEVENLABS_MODEL
+}
+
+function activeVoiceId() {
+  return isInworldConfigured() ? INWORLD_VOICE_ID : ELEVENLABS_VOICE_ID
+}
+
+let currentAudio = null
+let currentAbort = null
+let cachedWorkingVoiceId = null
+let cachedVoiceCandidates = null
+let connectionProbeDone = false
+const cachedVoiceNames = new Map()
+
+/**
+ * ElevenLabs is OFF unless explicitly enabled.
+ * Old bug: `USE_API_PROXY` alone returned true in production, so Netlify always
+ * tried ElevenLabs even when the project only uses browser TTS — broke iPhone voice.
+ *
+ * Enable later with Netlify env: VITE_ELEVENLABS_ENABLED=true (+ server ELEVENLABS_* keys).
+ */
+export function isElevenLabsConfigured() {
+  if (isInworldConfigured()) return true
+
+  const explicitlyEnabled =
+    String(import.meta.env.VITE_ELEVENLABS_ENABLED ?? '')
+      .trim()
+      .toLowerCase() === 'true'
+
+  if (USE_API_PROXY) return explicitlyEnabled
+  return explicitlyEnabled || Boolean(ELEVENLABS_API_KEY)
+}
+
+export function getElevenLabsConfigSummary() {
+  const provider = activeTtsProvider()
+  return {
+    configured: isElevenLabsConfigured(),
+    provider,
+    voiceId: activeVoiceId() || null,
+    model: activeTtsModel(),
+  }
+}
+
+let mobileAudioPrimed = false
+/** Dedicated unlock element — never used for TTS (iOS: overwriting TTS src kills sound). */
+let unlockAudioEl = null
+/** HTMLAudioElement path (Android / desktop). */
+let ttsAudioEl = null
+let sharedAudioCtx = null
+let ttsOutputBus = null
+let reelRecordDestination = null
+let reelRecordBusLinked = false
+let keepAliveOsc = null
+let keepAliveGain = null
+let unlockInFlight = null
+/** Web Audio TTS source (fallback path). */
+let currentBufferSource = null
+let currentObjectUrl = null
+/** If iOS blocks play(), retry once on the next user gesture. */
+let pendingHtmlPlay = null
+/**
+ * iPhone: TTS blob ready, waiting for Meet Myra begin tap.
+ * play() MUST start inside the pointerdown handler (same user gesture).
+ */
+let deferredTtsJob = null
+/** iPhone browser speechSynthesis — also needs the same tap gesture. */
+let deferredBrowserTts = null
+/** After one successful gesture play, later lines may autoplay. */
+let appleGestureUnlocked = false
+/** Reel capture picks mic when Myra uses browser speechSynthesis. */
+let myraVoiceOutputPath = 'browser'
+
+export function getMyraVoiceOutputPath() {
+  return myraVoiceOutputPath
+}
+
+export function setMyraVoiceOutputPath(path) {
+  myraVoiceOutputPath = path === 'cloud' ? 'cloud' : 'browser'
+}
+
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve('timeout'), ms)),
+  ])
+}
+
+export function getSharedAudioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext
+  if (!Ctx) return null
+  if (!sharedAudioCtx) {
+    sharedAudioCtx = new Ctx()
+  }
+  return sharedAudioCtx
+}
+
+export async function resumeSharedAudioContext() {
+  const ctx = getSharedAudioContext()
+  if (!ctx) return false
+  if (ctx.state === 'suspended') {
+    try {
+      await ctx.resume()
+    } catch {
+      return false
+    }
+  }
+  return ctx.state === 'running'
+}
+
+function ensureTtsOutputBus(ctx = getSharedAudioContext()) {
+  if (!ctx) return null
+  if (!ttsOutputBus) {
+    ttsOutputBus = ctx.createGain()
+    ttsOutputBus.gain.value = 1
+    ttsOutputBus.connect(ctx.destination)
+  }
+  return ttsOutputBus
+}
+
+/** Tap cloud TTS Web Audio output for reel recording. */
+export function getReelRecordingAudioStream() {
+  const ctx = getSharedAudioContext()
+  const bus = ensureTtsOutputBus(ctx)
+  if (!ctx || !bus) return null
+
+  if (!reelRecordDestination) {
+    reelRecordDestination = ctx.createMediaStreamDestination()
+  }
+  if (!reelRecordBusLinked) {
+    bus.connect(reelRecordDestination)
+    reelRecordBusLinked = true
+  }
+
+  void ctx.resume()
+  return reelRecordDestination.stream
+}
+
+export function releaseReelRecordingAudioStream() {
+  if (ttsOutputBus && reelRecordDestination && reelRecordBusLinked) {
+    try {
+      ttsOutputBus.disconnect(reelRecordDestination)
+    } catch {
+      /* ignore */
+    }
+    reelRecordBusLinked = false
+  }
+}
+
+function mountAudioEl(audio) {
+  if (typeof document === 'undefined' || !document.body || audio.isConnected) return
+  audio.setAttribute('aria-hidden', 'true')
+  audio.style.cssText =
+    'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:-9999px'
+  document.body.appendChild(audio)
+}
+
+function makeInlineAudio() {
+  const audio = new Audio()
+  audio.setAttribute('playsinline', '')
+  audio.setAttribute('webkit-playsinline', '')
+  audio.playsInline = true
+  audio.preload = 'auto'
+  mountAudioEl(audio)
+  return audio
+}
+
+function getUnlockAudioElement() {
+  if (!unlockAudioEl) unlockAudioEl = makeInlineAudio()
+  else mountAudioEl(unlockAudioEl)
+  return unlockAudioEl
+}
+
+function getTtsAudioElement() {
+  if (!ttsAudioEl) ttsAudioEl = makeInlineAudio()
+  else mountAudioEl(ttsAudioEl)
+  return ttsAudioEl
+}
+
+/** Keep Web Audio session alive on iPhone only — Android can hear tiny oscillator clicks. */
+function startSilentKeepAlive(ctx) {
+  if (!ctx || keepAliveOsc || !isAppleMobileBrowser()) return
+  try {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    gain.gain.value = 0.00001
+    osc.frequency.value = 440
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(0)
+    keepAliveOsc = osc
+    keepAliveGain = gain
+  } catch (error) {
+    console.warn('[Audio] keep-alive failed:', error?.name || error)
+  }
+}
+
+function notifyAudioNeedsTap(needsTap) {
+  try {
+    window.dispatchEvent(
+      new CustomEvent('axerai-audio-needs-tap', { detail: { needsTap: Boolean(needsTap) } }),
+    )
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Unlock iPhone audio on any existing user gesture (camera allow / first touch).
+ * Uses a separate silent <audio> so TTS never gets its src wiped.
+ */
+export async function ensureMobileAudioUnlocked({ force = false } = {}) {
+  const ctx = getSharedAudioContext()
+  if (mobileAudioPrimed && !force) {
+    if (ctx?.state === 'suspended') {
+      try {
+        await ctx.resume()
+      } catch {
+        // ignore
+      }
+    }
+    return mobileAudioPrimed
+  }
+
+  // Already primed: force refresh must NOT dip TTS element volume (causes quiet 2nd line on iPhone).
+  if (mobileAudioPrimed && force) {
+    try {
+      if (ctx?.state === 'suspended') await withTimeout(ctx.resume(), 800)
+      const unlockEl = getUnlockAudioElement()
+      if (unlockEl.paused) {
+        unlockEl.muted = false
+        unlockEl.volume = 0.01
+        unlockEl.loop = true
+        unlockEl.src = SILENT_WAV
+        await withTimeout(unlockEl.play(), 800)
+      }
+      window.speechSynthesis?.resume?.()
+    } catch {
+      // ignore
+    }
+    return true
+  }
+
+  if (unlockInFlight) return unlockInFlight
+
+  unlockInFlight = (async () => {
+    try {
+      if (ctx?.state === 'suspended') {
+        await withTimeout(ctx.resume(), 800)
+      }
+
+      // Keep a near-silent looping <audio> alive — pausing often re-locks iOS.
+      const unlockEl = getUnlockAudioElement()
+      unlockEl.muted = false
+      unlockEl.volume = 0.01
+      unlockEl.loop = true
+      if (unlockEl.paused) {
+        unlockEl.src = SILENT_WAV
+        await withTimeout(unlockEl.play(), 1200)
+      }
+
+      // First prime only — never again lower the TTS element volume after this.
+      const ttsEl = getTtsAudioElement()
+      if (!currentAudio) {
+        ttsEl.muted = false
+        ttsEl.volume = 0.01
+        ttsEl.loop = false
+        ttsEl.src = SILENT_WAV
+        const ttsPlay = await withTimeout(ttsEl.play(), 1200)
+        if (ttsPlay !== 'timeout') {
+          ttsEl.pause()
+          try {
+            ttsEl.currentTime = 0
+          } catch {
+            // ignore
+          }
+        }
+        ttsEl.volume = 1
+      }
+
+      if (ctx) startSilentKeepAlive(ctx)
+
+      try {
+        window.speechSynthesis?.resume?.()
+      } catch {
+        // ignore
+      }
+
+      mobileAudioPrimed = true
+      return true
+    } catch (error) {
+      console.warn('[Audio] unlock failed:', error?.name || error)
+      return false
+    } finally {
+      unlockInFlight = null
+    }
+  })()
+
+  return unlockInFlight
+}
+
+/** iPhone: wait after mic track.stop before TTS so AVAudioSession leaves play-and-record. */
+const APPLE_MIC_TO_SPEAKER_MS = 300
+
+/** Pause near-silent unlock loop so it cannot duck Myra TTS on iPhone. */
+function pauseUnlockLoopForTts() {
+  if (!unlockAudioEl) return
+  try {
+    unlockAudioEl.pause()
+  } catch {
+    // ignore
+  }
+}
+
+function resumeUnlockLoopAfterTts() {
+  // iPhone: resuming the unlock loop after Myra speaks re-enters a ducked session
+  // before the next line — keep it paused for the whole chat; mic start pauses again too.
+  if (isAppleMobileBrowser()) return
+  if (!unlockAudioEl) return
+  try {
+    unlockAudioEl.muted = false
+    unlockAudioEl.volume = 0.01
+    unlockAudioEl.loop = true
+    if (unlockAudioEl.paused) {
+      if (!unlockAudioEl.src) unlockAudioEl.src = SILENT_WAV
+      void unlockAudioEl.play().catch(() => {})
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Call when live mic opens — unlock loop + mic together duck speaker on iOS. */
+export function pauseAppleUnlockLoop() {
+  if (!isAppleMobileBrowser()) return
+  pauseUnlockLoopForTts()
+}
+
+/**
+ * iPhone only: after mic fully released, wait and nudge playback route before Myra TTS.
+ * Prevents ~40% volume drop on 2nd+ lines (play-and-record → speaker).
+ */
+export async function prepareApplePlaybackAfterMic() {
+  if (!isAppleMobileBrowser()) return
+
+  pauseUnlockLoopForTts()
+
+  const ctx = getSharedAudioContext()
+  try {
+    if (ctx?.state === 'suspended') {
+      await withTimeout(ctx.resume(), 800)
+    }
+  } catch {
+    // ignore
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, APPLE_MIC_TO_SPEAKER_MS))
+
+  const ttsEl = getTtsAudioElement()
+  ttsEl.muted = false
+  ttsEl.volume = 1
+
+  if (currentAudio || !ttsEl.paused) return
+
+  try {
+    ttsEl.loop = false
+    ttsEl.src = SILENT_WAV
+    const played = await withTimeout(ttsEl.play(), 700)
+    if (played !== 'timeout') {
+      ttsEl.pause()
+      try {
+        ttsEl.currentTime = 0
+      } catch {
+        // ignore
+      }
+    }
+    ttsEl.volume = 1
+    ttsEl.muted = false
+    ttsEl.removeAttribute('src')
+  } catch {
+    // Myra MP3 play may still succeed
+  }
+}
+
+/** Call on user tap so iOS allows ElevenLabs playback after async Gemini. */
+export function primeMobileAudio({ force = false } = {}) {
+  void ensureMobileAudioUnlocked({ force })
+}
+
+/**
+ * Choocha Safari loophole: empty utterance spoken *synchronously* inside a user
+ * gesture. Keeps speechSynthesis unlocked so later browser-TTS can speak after
+ * Gemini (even when ElevenLabs credits are gone).
+ */
+export function primeSafariSpeechSynthesis() {
+  if (!isAppleMobileBrowser()) return
+  const synth = window.speechSynthesis
+  if (!synth) return
+  try {
+    synth.resume?.()
+    // Empty string — same as axerai captureFrame. Do NOT cancel() first.
+    synth.speak(new SpeechSynthesisUtterance(''))
+  } catch {
+    // ignore
+  }
+}
+
+export function isAppleSpeechGestureUnlocked() {
+  return appleGestureUnlocked
+}
+
+function clearDeferredTtsJob(reason) {
+  if (!deferredTtsJob) return
+  const job = deferredTtsJob
+  deferredTtsJob = null
+  notifyAudioNeedsTap(false)
+  if (reason === 'cancel') {
+    job.callbacks?.onEnd?.()
+    job.resolvePlay?.()
+  }
+}
+
+function playQueuedBrowserTtsFromGesture() {
+  const job = deferredBrowserTts
+  if (!job?.text) return false
+
+  clearSilentGestureArm()
+  deferredBrowserTts = null
+  notifyAudioNeedsTap(false)
+
+  const synth = window.speechSynthesis
+  if (!synth) {
+    job.callbacks?.onEnd?.()
+    job.resolvePlay?.()
+    return false
+  }
+
+  try {
+    // Do not cancel() here — iOS can drop the next speak() after cancel in the same tick.
+    synth.resume?.()
+  } catch {
+    // ignore
+  }
+
+  const utterance = new SpeechSynthesisUtterance(job.text)
+  // Prefer default Safari voice when none stored — some en-IN voices fail silently.
+  if (job.voice) {
+    utterance.voice = job.voice
+    utterance.lang = job.voice.lang || 'hi-IN'
+  } else {
+    utterance.lang = job.lang || 'hi-IN'
+  }
+  utterance.rate = job.rate ?? 1.06
+  utterance.pitch = job.pitch ?? 1
+  utterance.onstart = () => {
+    appleGestureUnlocked = true
+    mobileAudioPrimed = true
+    setMyraVoiceOutputPath('browser')
+    startSpeechLipSync()
+    job.callbacks?.onStart?.()
+  }
+  utterance.onend = () => {
+    job.callbacks?.onEnd?.()
+    job.resolvePlay?.()
+  }
+  utterance.onerror = (event) => {
+    console.warn('[Audio] iPhone browser TTS error:', event?.error || event)
+    job.callbacks?.onEnd?.()
+    job.resolvePlay?.()
+  }
+
+  // Must call speak() inside the user gesture — Safari drops delayed speak().
+  synth.speak(utterance)
+  console.info('[Audio] iPhone browser TTS started from tap')
+  return true
+}
+
+/**
+ * Call from Meet Myra / Begin pointerdown — starts play/speak in the same gesture.
+ * This is the reliable iPhone path (autoplay after Gemini delay always fails).
+ */
+export function playQueuedTtsFromUserGesture() {
+  const ctx = getSharedAudioContext()
+  void ctx?.resume?.()
+
+  // Browser TTS queue (default when ElevenLabs is off).
+  if (deferredBrowserTts?.text) {
+    return playQueuedBrowserTtsFromGesture()
+  }
+
+  const job = deferredTtsJob || pendingHtmlPlay
+  if (!job?.blob) {
+    void ensureMobileAudioUnlocked({ force: true })
+    return false
+  }
+
+  deferredTtsJob = null
+  pendingHtmlPlay = null
+  notifyAudioNeedsTap(false)
+  appleGestureUnlocked = true
+  mobileAudioPrimed = true
+
+  const { onStart, onEnd, onError } = job.callbacks || {}
+  void playBlob(job.blob, {
+    onStart: () => onStart?.(),
+    onEnd: () => {
+      onEnd?.()
+      job.resolvePlay?.()
+    },
+    onError: (err) => {
+      onError?.(err)
+      job.resolvePlay?.()
+    },
+  }).catch((error) => {
+    console.warn('[Audio] Gesture play failed:', error)
+    deferredTtsJob = job
+    notifyAudioNeedsTap(true)
+  })
+
+  return true
+}
+
+export function hasQueuedTtsForGesture() {
+  return Boolean(deferredTtsJob?.blob || pendingHtmlPlay?.blob || deferredBrowserTts?.text)
+}
+
+let silentGestureArm = null
+
+function clearSilentGestureArm() {
+  if (!silentGestureArm) return
+  const arm = silentGestureArm
+  silentGestureArm = null
+  if (arm.hintTimer) {
+    clearTimeout(arm.hintTimer)
+    arm.hintTimer = null
+  }
+  if (arm.listener) {
+    arm.events.forEach((type) => {
+      window.removeEventListener(type, arm.listener, true)
+    })
+  }
+}
+
+/**
+ * Queue Safari TTS for the next real touch — show branded Meet Myra gate immediately.
+ */
+function armSilentGestureBrowserTts(job) {
+  clearSilentGestureArm()
+
+  deferredBrowserTts = job
+  notifyAudioNeedsTap(true)
+
+  const events = ['pointerdown', 'touchstart', 'click']
+  const onGesture = (event) => {
+    // Let the Meet Myra button handle its own pointerdown; still unlock on any other touch.
+    if (event?.target?.closest?.('.axerai-audio-tap')) return
+    if (!deferredBrowserTts || deferredBrowserTts !== job) return
+    clearSilentGestureArm()
+    playQueuedBrowserTtsFromGesture()
+  }
+
+  silentGestureArm = { listener: onGesture, events, hintTimer: null }
+  events.forEach((type) => {
+    window.addEventListener(type, onGesture, { capture: true, passive: true })
+  })
+  console.info('[Audio] Meet Myra gate — waiting for begin tap')
+}
+
+/** Queue Safari speechSynthesis until Meet Myra begin tap. */
+export function queueBrowserTtsForUserGesture(
+  text,
+  { onStart, onEnd, onError, voice = null, lang = 'hi-IN', rate = 1.06, pitch = 1, showTapHint = true } = {},
+) {
+  const trimmed = String(text ?? '').trim()
+  return new Promise((resolve) => {
+    if (!trimmed) {
+      onEnd?.()
+      resolve()
+      return
+    }
+    if (deferredBrowserTts) {
+      deferredBrowserTts.callbacks?.onEnd?.()
+      deferredBrowserTts.resolvePlay?.()
+    }
+    clearSilentGestureArm()
+    const job = {
+      text: trimmed,
+      voice,
+      lang,
+      rate,
+      pitch,
+      callbacks: { onStart, onEnd, onError },
+      resolvePlay: resolve,
+    }
+    if (showTapHint) {
+      deferredBrowserTts = job
+      notifyAudioNeedsTap(true)
+      console.info('[Audio] Meet Myra gate (browser TTS)')
+      return
+    }
+    armSilentGestureBrowserTts(job)
+  })
+}
+
+/**
+ * Safari TTS: after unlock, speak directly. First iPhone unlock → Meet Myra gate (branded).
+ */
+export function speakBrowserTtsAuto(
+  text,
+  { onStart, onEnd, onError, voice = null, lang = 'hi-IN', rate = 1.06, pitch = 1 } = {},
+) {
+  const trimmed = String(text ?? '').trim()
+  return new Promise((resolve) => {
+    if (!trimmed) {
+      onEnd?.()
+      resolve()
+      return
+    }
+
+    const speakDirect = () => {
+      const synth = window.speechSynthesis
+      if (!synth) {
+        onEnd?.()
+        resolve()
+        return
+      }
+      try {
+        synth.resume?.()
+      } catch {
+        // ignore
+      }
+      const utterance = new SpeechSynthesisUtterance(trimmed)
+      if (voice) {
+        utterance.voice = voice
+        utterance.lang = voice.lang || lang
+      } else {
+        utterance.lang = lang
+      }
+      utterance.rate = rate
+      utterance.pitch = pitch
+      utterance.onstart = () => {
+        appleGestureUnlocked = true
+        setMyraVoiceOutputPath('browser')
+        startSpeechLipSync()
+        onStart?.()
+      }
+      utterance.onend = () => {
+        onEnd?.()
+        resolve()
+      }
+      utterance.onerror = () => {
+        onEnd?.()
+        resolve()
+      }
+      synth.speak(utterance)
+    }
+
+    // Already unlocked this session — delayed speak usually works.
+    if (appleGestureUnlocked || !isAppleMobileBrowser()) {
+      speakDirect()
+      return
+    }
+
+    // First iPhone voice = intentional Meet Myra moment (not a tech error label).
+    armSilentGestureBrowserTts({
+      text: trimmed,
+      voice,
+      lang,
+      rate,
+      pitch,
+      callbacks: { onStart, onEnd, onError },
+      resolvePlay: resolve,
+    })
+  })
+}
+
+function queueTtsBlobForUserGesture(blob, callbacks) {
+  return new Promise((resolve) => {
+    clearDeferredTtsJob('cancel')
+    deferredTtsJob = {
+      blob,
+      callbacks,
+      resolvePlay: resolve,
+    }
+    notifyAudioNeedsTap(true)
+    console.info('[Audio] Meet Myra gate (ElevenLabs)')
+  })
+}
+
+/** Refresh iOS/Safari audio unlock. speechPing is Apple-only (Android makes tung-tung beeps). */
+export function unlockMobileSpeechAudio({ force = false, speechPing = false } = {}) {
+  // Kick AudioContext resume synchronously inside the gesture when possible.
+  const ctx = getSharedAudioContext()
+  void ctx?.resume?.()
+
+  // Prefer sync gesture play for queued TTS (do not await unlock first).
+  if (hasQueuedTtsForGesture()) {
+    playQueuedTtsFromUserGesture()
+    return
+  }
+
+  // Must stay sync inside the gesture — async .then() loses Safari permission.
+  if (speechPing) {
+    primeSafariSpeechSynthesis()
+  }
+
+  void ensureMobileAudioUnlocked({ force }).then(() => {
+    notifyAudioNeedsTap(
+      Boolean(pendingHtmlPlay || deferredTtsJob || deferredBrowserTts?.text),
+    )
+  })
+}
+
+function stopBufferSource() {
+  if (!currentBufferSource) return
+  try {
+    currentBufferSource.onended = null
+    currentBufferSource.stop(0)
+  } catch {
+    // already stopped
+  }
+  try {
+    currentBufferSource.disconnect()
+  } catch {
+    // ignore
+  }
+  currentBufferSource = null
+}
+
+export function stopElevenLabsSpeech() {
+  disconnectTtsAudio()
+  stopSpeechLipSync()
+  pendingHtmlPlay = null
+  clearSilentGestureArm()
+  if (deferredBrowserTts) {
+    const job = deferredBrowserTts
+    deferredBrowserTts = null
+    notifyAudioNeedsTap(false)
+    job.callbacks?.onEnd?.()
+    job.resolvePlay?.()
+  }
+  if (deferredTtsJob) {
+    const job = deferredTtsJob
+    deferredTtsJob = null
+    notifyAudioNeedsTap(false)
+    job.callbacks?.onEnd?.()
+    job.resolvePlay?.()
+  }
+  if (currentAbort) {
+    currentAbort.abort()
+    currentAbort = null
+  }
+  stopBufferSource()
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl)
+    currentObjectUrl = null
+  }
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio.currentTime = 0
+    if (currentAudio._objectUrl) {
+      URL.revokeObjectURL(currentAudio._objectUrl)
+      currentAudio._objectUrl = null
+    }
+    currentAudio = null
+  }
+}
+
+export function isElevenLabsSpeaking() {
+  if (currentBufferSource) return true
+  return Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended)
+}
+
+function isBrowserSpeechSynthesisSpeaking() {
+  try {
+    return Boolean(typeof window !== 'undefined' && window.speechSynthesis?.speaking)
+  } catch {
+    return false
+  }
+}
+
+/** True while cloud TTS or browser speechSynthesis is still outputting Myra audio. */
+export function isMyraSpeechPlaying() {
+  return isElevenLabsSpeaking() || isBrowserSpeechSynthesisSpeaking()
+}
+
+/** Wait until speaker idle — use before session teardown so goodbye lines are not cut mid-word. */
+export async function waitForMyraSpeechToFinish({ maxMs = 90000, pollMs = 100, tailMs = 320 } = {}) {
+  const deadline = Date.now() + maxMs
+  while (Date.now() < deadline) {
+    if (!isMyraSpeechPlaying()) break
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, pollMs)
+    })
+  }
+  if (tailMs > 0) {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, tailMs)
+    })
+  }
+}
+
+function isQuotaExceeded(detail) {
+  return String(detail).includes('quota_exceeded')
+}
+
+function isPaidVoiceError(status, detail) {
+  return (
+    status === 402 ||
+    detail.includes('paid_plan_required') ||
+    detail.includes('library voices')
+  )
+}
+
+function isAuthError(status, detail) {
+  if (isQuotaExceeded(detail)) return false
+  return status === 401 || status === 403
+}
+
+function formatInworldErrorDetail(status, detail) {
+  const text = String(detail ?? '').trim()
+  if (!text) return `HTTP ${status}`
+
+  try {
+    const payload = JSON.parse(text)
+    const message = payload?.error?.message || payload?.error || payload?.message
+    if (message) return String(message)
+  } catch {
+    // plain text / html error body
+  }
+
+  return text.slice(0, 180)
+}
+
+function parseTtsError(status, detail) {
+  const text = formatInworldErrorDetail(status, detail)
+
+  if (isInworldConfigured()) {
+    if (isAuthError(status, String(detail))) {
+      return {
+        fatal: false,
+        message: 'Inworld API key invalid — browser voice use hogi.',
+      }
+    }
+    return {
+      fatal: false,
+      message: `Inworld ${status}: ${text}`,
+    }
+  }
+
+  if (isQuotaExceeded(text)) {
+    return {
+      fatal: true,
+      message:
+        'ElevenLabs credits khatam (0 remaining). elevenlabs.io → Profile → Usage check karo. Abhi browser voice use hogi.',
+    }
+  }
+
+  if (isPaidVoiceError(status, text)) {
+    return {
+      fatal: false,
+      message: 'Selected voice needs paid plan — try a premade or your own cloned voice ID.',
+    }
+  }
+
+  if (isAuthError(status, text)) {
+    return {
+      fatal: true,
+      message:
+        'ElevenLabs API key invalid. elevenlabs.io → Profile → API Keys se naya key banao.',
+    }
+  }
+
+  return {
+    fatal: true,
+    message: `ElevenLabs ${status}: ${text.slice(0, 180)}`,
+  }
+}
+
+async function fetchAccountCredits() {
+  if (USE_API_PROXY) return { label: 'server proxy', error: 'Credits hidden in proxy mode' }
+  try {
+    const [subRes, userRes] = await Promise.all([
+      fetch('https://api.elevenlabs.io/v1/user/subscription', {
+        headers: { 'xi-api-key': ELEVENLABS_API_KEY },
+      }),
+      fetch('https://api.elevenlabs.io/v1/user', {
+        headers: { 'xi-api-key': ELEVENLABS_API_KEY },
+      }),
+    ])
+
+    let label = 'unknown account'
+    if (userRes.ok) {
+      const user = await userRes.json()
+      label = user.first_name || user.xi_api_key?.slice(0, 8) || label
+    }
+
+    if (!subRes.ok) {
+      return { label, error: `subscription HTTP ${subRes.status}` }
+    }
+
+    const sub = await subRes.json()
+    const used = sub.character_count ?? 0
+    const limit = sub.character_limit ?? 0
+    const remaining = Math.max(0, limit - used)
+
+    return {
+      label,
+      tier: sub.tier ?? sub.status ?? 'unknown',
+      used,
+      limit,
+      remaining,
+    }
+  } catch (error) {
+    return { label: 'unknown', error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function loadVoiceNames() {
+  if (USE_API_PROXY) return
+  try {
+    const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY },
+    })
+    if (!response.ok) return
+
+    const data = await response.json()
+    for (const voice of data.voices ?? []) {
+      if (voice.voice_id && voice.name) {
+        cachedVoiceNames.set(voice.voice_id, voice.name)
+      }
+    }
+    console.log(`[ElevenLabs] Account voices: ${data.voices?.length ?? 0}`)
+  } catch (error) {
+    console.warn('[ElevenLabs] Could not list voice names:', error)
+  }
+}
+
+async function fetchVoiceCandidates() {
+  if (isInworldConfigured()) {
+    if (USE_API_PROXY) return [INWORLD_VOICE_ID || 'server']
+    return INWORLD_VOICE_ID ? [INWORLD_VOICE_ID] : []
+  }
+
+  // Production proxy uses server ELEVENLABS_VOICE_ID — client VITE_ id is often empty.
+  // Must still return a placeholder or speakWithElevenLabs aborts before any fetch.
+  if (USE_API_PROXY) return [ELEVENLABS_VOICE_ID || 'server']
+
+  if (cachedVoiceCandidates) return cachedVoiceCandidates
+
+  await loadVoiceNames()
+
+  const ids = []
+  const add = (id) => {
+    if (id && !ids.includes(id)) ids.push(id)
+  }
+
+  add(ELEVENLABS_VOICE_ID)
+  add(cachedWorkingVoiceId)
+
+  cachedVoiceCandidates = ids
+  return cachedVoiceCandidates
+}
+
+async function waitForAudioReady(audio, timeoutMs = 4000) {
+  if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return
+  await Promise.race([
+    new Promise((resolve, reject) => {
+      const onReady = () => {
+        cleanup()
+        resolve()
+      }
+      const onError = () => {
+        cleanup()
+        reject(new Error('Audio load failed'))
+      }
+      const cleanup = () => {
+        audio.removeEventListener('canplaythrough', onReady)
+        audio.removeEventListener('loadeddata', onReady)
+        audio.removeEventListener('error', onError)
+      }
+      audio.addEventListener('canplaythrough', onReady, { once: true })
+      audio.addEventListener('loadeddata', onReady, { once: true })
+      audio.addEventListener('error', onError, { once: true })
+    }),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ])
+}
+
+/** Fallback only — Web Audio is muted by iPhone hardware Silent switch. */
+async function playBlobViaWebAudio(blob, { onStart, onEnd, onError }) {
+  const ctx = getSharedAudioContext()
+  if (!ctx) throw new Error('Web Audio unavailable')
+
+  if (ctx.state === 'suspended') {
+    await withTimeout(ctx.resume(), 800)
+  }
+  startSilentKeepAlive(ctx)
+
+  const arrayBuffer = await blob.arrayBuffer()
+  const copy = arrayBuffer.slice(0)
+  const audioBuffer = await ctx.decodeAudioData(copy)
+
+  stopBufferSource()
+  const source = ctx.createBufferSource()
+  const gain = ctx.createGain()
+  gain.gain.value = TTS_PLAYBACK_GAIN
+  source.buffer = audioBuffer
+  source.connect(gain)
+  gain.connect(ensureTtsOutputBus(ctx) ?? ctx.destination)
+  currentBufferSource = source
+
+  source.onended = () => {
+    if (currentBufferSource === source) currentBufferSource = null
+    try {
+      source.disconnect()
+      gain.disconnect()
+    } catch {
+      // ignore
+    }
+    disconnectTtsAudio()
+    currentAbort = null
+    onEnd?.()
+  }
+
+  try {
+    source.start(0)
+    setMyraVoiceOutputPath('cloud')
+    startSpeechLipSync()
+    onStart?.()
+  } catch (error) {
+    currentBufferSource = null
+    onError?.(error instanceof Error ? error : new Error('Web Audio play failed'))
+    throw error
+  }
+}
+
+async function playBlobViaHtmlAudio(blob, { onStart, onEnd, onError }) {
+  const objectUrl = URL.createObjectURL(blob)
+  currentObjectUrl = objectUrl
+  const audio = getTtsAudioElement()
+  pauseUnlockLoopForTts()
+  audio.muted = false
+  audio.volume = 1
+  audio.loop = false
+  audio.src = objectUrl
+  audio._objectUrl = objectUrl
+  currentAudio = audio
+  try {
+    audio.load()
+  } catch {
+    // ignore
+  }
+
+  const cleanup = () => {
+    if (currentObjectUrl === objectUrl) {
+      URL.revokeObjectURL(objectUrl)
+      currentObjectUrl = null
+    }
+    audio._objectUrl = null
+    if (currentAudio === audio) currentAudio = null
+    currentAbort = null
+    resumeUnlockLoopAfterTts()
+  }
+
+  audio.onended = () => {
+    disconnectTtsAudio()
+    cleanup()
+    onEnd?.()
+  }
+
+  audio.onerror = () => {
+    disconnectTtsAudio()
+    cleanup()
+    onError?.(new Error('ElevenLabs audio playback failed'))
+  }
+
+  await waitForAudioReady(audio)
+  setTtsPlaybackGain(TTS_PLAYBACK_GAIN)
+  // Do not route iPhone TTS through Web Audio graph — Silent switch + session steal.
+  if (!isAppleMobileBrowser()) {
+    connectTtsAudio(audio)
+  } else {
+    startSpeechLipSync()
+  }
+
+  try {
+    audio.muted = false
+    audio.volume = 1
+    await audio.play()
+    notifyAudioNeedsTap(false)
+    setMyraVoiceOutputPath('cloud')
+    onStart?.()
+  } catch (error) {
+    const name = error instanceof Error ? error.name : ''
+    if (isAppleMobileBrowser() && (name === 'NotAllowedError' || name === 'AbortError')) {
+      // Resolve after the user taps again (unlockMobileSpeechAudio flushes this).
+      pendingHtmlPlay = {
+        blob,
+        callbacks: { onStart, onEnd, onError },
+      }
+      notifyAudioNeedsTap(true)
+      console.warn('[Audio] iOS blocked TTS — Meet Myra gate')
+      return
+    }
+    cleanup()
+    throw error
+  }
+}
+
+async function playBlob(blob, { onStart, onEnd, onError }) {
+  if (!blob?.size) {
+    throw new Error('ElevenLabs returned empty audio')
+  }
+
+  void ensureMobileAudioUnlocked({ force: false })
+  if (isAppleMobileBrowser()) {
+    await prepareApplePlaybackAfterMic()
+  }
+
+  // Web Audio gain can exceed HTMLAudioElement volume=1 (Myra playback boost).
+  if (TTS_PLAYBACK_GAIN > 1) {
+    try {
+      await playBlobViaWebAudio(blob, { onStart, onEnd, onError })
+      return
+    } catch (webAudioError) {
+      console.warn('[Audio] Boosted Web Audio TTS failed, trying HTML:', webAudioError)
+    }
+  }
+
+  try {
+    // iPhone: HTMLAudioElement fallback (works with Silent switch better than Web Audio).
+    await playBlobViaHtmlAudio(blob, { onStart, onEnd, onError })
+  } catch (htmlError) {
+    console.warn('[Audio] HTML TTS failed, trying Web Audio:', htmlError)
+    try {
+      await playBlobViaWebAudio(blob, { onStart, onEnd, onError })
+    } catch (error) {
+      const name = error instanceof Error ? error.name : 'PlaybackError'
+      throw new Error(
+        `iPhone audio block (${name}) — volume up karo, screen tap karke dubara try karo`,
+      )
+    }
+  }
+}
+
+function buildTtsUrl(voiceId) {
+  const params = new URLSearchParams({
+    output_format: 'mp3_44100_128',
+  })
+  return `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?${params}`
+}
+
+function buildTtsBody(text) {
+  return {
+    text: String(text).trim(),
+    model_id: ELEVENLABS_MODEL,
+    voice_settings: ELEVENLABS_VOICE_SETTINGS,
+  }
+}
+
+function decodeBase64ToBytes(base64) {
+  const binary = atob(base64)
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
+}
+
+function mergeAbortSignals(userSignal, timeoutMs = 25000) {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  const onUserAbort = () => controller.abort()
+
+  if (userSignal) {
+    if (userSignal.aborted) controller.abort()
+    else userSignal.addEventListener('abort', onUserAbort, { once: true })
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      window.clearTimeout(timeoutId)
+      if (userSignal) userSignal.removeEventListener('abort', onUserAbort)
+    },
+  }
+}
+
+function buildInworldRequestBody(text, voiceId) {
+  return JSON.stringify({
+    text: String(text).trim(),
+    voiceId: voiceId || INWORLD_VOICE_ID,
+    modelId: INWORLD_MODEL,
+    audioConfig: { audioEncoding: 'MP3', speakingRate: INWORLD_SPEAKING_RATE },
+  })
+}
+
+async function requestInworldTts(text, voiceId, signal) {
+  const { signal: mergedSignal, cleanup } = mergeAbortSignals(signal)
+
+  try {
+    const useDevProxy = import.meta.env.DEV
+    const response = await fetch(useDevProxy ? '/api/inworld-tts' : 'https://api.inworld.ai/tts/v1/voice', {
+      method: 'POST',
+      headers: useDevProxy
+        ? { 'Content-Type': 'application/json' }
+        : {
+            Authorization: `Basic ${INWORLD_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+      body: buildInworldRequestBody(text, voiceId),
+      signal: mergedSignal,
+    })
+
+    if (!response.ok) {
+      return response
+    }
+
+    const payload = await response.json().catch(() => ({}))
+    const audioContent = String(payload?.audioContent ?? '').trim()
+    if (!audioContent) {
+      return new Response(JSON.stringify({ error: 'Inworld returned empty audio' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    const charCount = Number(
+      payload?.usage?.processedCharactersCount ?? countElevenLabsCharacters(text),
+    )
+
+    let audioBytes
+    try {
+      audioBytes = decodeBase64ToBytes(audioContent)
+    } catch (error) {
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : 'Inworld audio decode failed',
+        }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+
+    return new Response(audioBytes, {
+      status: 200,
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'X-Axerai-Characters': String(charCount),
+      },
+    })
+  } catch (error) {
+    if (mergedSignal.aborted) {
+      return new Response(JSON.stringify({ error: 'Inworld TTS timed out' }), {
+        status: 504,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    throw error
+  } finally {
+    cleanup()
+  }
+}
+
+async function requestTtsResponse(text, voiceId, signal) {
+  if (isInworldConfigured()) {
+    if (USE_API_PROXY) {
+      return requestInworldViaProxy(text, signal)
+    }
+    return requestInworldTts(text, voiceId, signal)
+  }
+
+  if (USE_API_PROXY) {
+    return requestElevenLabsViaProxy(text, signal)
+  }
+
+  return fetch(buildTtsUrl(voiceId), {
+    method: 'POST',
+    headers: {
+      'xi-api-key': ELEVENLABS_API_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify(buildTtsBody(text)),
+    signal,
+  })
+}
+
+async function playTtsResponse(response, callbacks, signal) {
+  const blob = await response.blob()
+  if (signal.aborted) return
+  await playBlob(blob, callbacks)
+}
+
+export async function probeElevenLabsConnection() {
+  if (!isElevenLabsConfigured()) {
+    return { ok: false, error: 'Cloud TTS not configured' }
+  }
+  if (USE_API_PROXY) {
+    return { ok: true, voiceId: 'server-proxy', model: activeTtsModel() }
+  }
+  if (!activeVoiceId()) {
+    return {
+      ok: false,
+      error: isInworldConfigured()
+        ? 'VITE_INWORLD_VOICE_ID missing in .env'
+        : 'VITE_ELEVENLABS_VOICE_ID missing in .env',
+    }
+  }
+
+  try {
+    const controller = new AbortController()
+    const response = await requestTtsResponse('Test.', activeVoiceId(), controller.signal)
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      const parsed = parseTtsError(response.status, detail)
+      return { ok: false, error: parsed.message }
+    }
+
+    const blob = await response.blob()
+    if (!blob.size) {
+      return { ok: false, error: 'API responded but audio was empty' }
+    }
+
+    return { ok: true, voiceId: activeVoiceId(), model: activeTtsModel() }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function logElevenLabsConnectionOnce() {
+  if (connectionProbeDone) return
+  connectionProbeDone = true
+
+  const config = getElevenLabsConfigSummary()
+  const label = config.provider === 'inworld' ? 'Inworld' : 'ElevenLabs'
+  if (!config.configured) {
+    console.warn(
+      import.meta.env.PROD
+        ? `[${label}] Not configured — set server TTS keys on Netlify.`
+        : `[${label}] Not configured — using browser TTS. Add VITE_INWORLD_* or VITE_ELEVENLABS_* to .env`,
+    )
+    return
+  }
+
+  if (USE_API_PROXY) {
+    console.log(`[${label}] Using Netlify proxy — API key stays server-side`)
+    return
+  }
+
+  console.log(`[${label}] Config:`, config)
+
+  if (config.provider === 'elevenlabs') {
+    const account = await fetchAccountCredits()
+    if (account.remaining != null) {
+      console.log(
+        `[ElevenLabs] API key account: "${account.label}" | ${account.remaining.toLocaleString()} credits left (${account.used?.toLocaleString()}/${account.limit?.toLocaleString()} used) | ${account.tier}`,
+      )
+    } else if (account.error) {
+      console.warn('[ElevenLabs] Could not read account credits:', account.error)
+    }
+  }
+
+  const result = await probeElevenLabsConnection()
+  if (result.ok) {
+    console.log(`[${label}] Connection OK — voice ready`)
+  } else {
+    console.warn(`[${label}] Connection issue:`, result.error)
+  }
+}
+
+function countElevenLabsCharacters(text) {
+  return Array.from(String(text ?? '').trim()).length
+}
+
+export async function speakWithElevenLabs(
+  text,
+  { onStart, onEnd, onError, requireUserGesture = false } = {},
+) {
+  if (!isElevenLabsConfigured()) {
+    throw new Error('ElevenLabs is not configured')
+  }
+
+  const trimmed = String(text).trim()
+  if (!trimmed) {
+    onEnd?.()
+    return
+  }
+
+  // Don't wipe a queued tap-to-play from a prior line unless starting fresh audio fetch.
+  pendingHtmlPlay = null
+  if (deferredTtsJob) {
+    const job = deferredTtsJob
+    deferredTtsJob = null
+    notifyAudioNeedsTap(false)
+    job.resolvePlay?.()
+  }
+  if (currentAbort) {
+    currentAbort.abort()
+    currentAbort = null
+  }
+  stopBufferSource()
+  if (currentAudio) {
+    currentAudio.pause()
+    if (currentAudio._objectUrl) {
+      URL.revokeObjectURL(currentAudio._objectUrl)
+      currentAudio._objectUrl = null
+    }
+    currentAudio = null
+  }
+
+  const controller = new AbortController()
+  currentAbort = controller
+
+  const voiceIds = await fetchVoiceCandidates()
+  if (!voiceIds.length) {
+    throw new Error('No ElevenLabs voice available')
+  }
+
+  // iPhone first voice: Meet Myra gate until one gesture play succeeds.
+  const needsGesture =
+    requireUserGesture || (isAppleMobileBrowser() && !appleGestureUnlocked)
+
+  let lastError = 'ElevenLabs TTS failed'
+
+  for (const voiceId of voiceIds) {
+    try {
+      const response = await requestTtsResponse(trimmed, voiceId, controller.signal)
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '')
+        const parsed = parseTtsError(response.status, detail)
+        console.warn(`[ElevenLabs] TTS failed (${voiceId}):`, parsed.message)
+
+        if (parsed.fatal) {
+          throw new Error(parsed.message)
+        }
+
+        lastError = parsed.message
+        continue
+      }
+
+      cachedWorkingVoiceId = voiceId
+      const voiceName = cachedVoiceNames.get(voiceId) || voiceId
+      const billedChars = Number(response.headers.get('X-Axerai-Characters') || 0)
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+      if (!blob?.size) {
+        lastError = 'ElevenLabs returned empty audio'
+        continue
+      }
+
+      // Billable characters — log once audio is confirmed (even if Meet Myra defers play).
+      void recordElevenLabsUsage({
+        characters: billedChars > 0 ? billedChars : countElevenLabsCharacters(trimmed),
+        model: activeTtsModel(),
+        voiceId: voiceId || '',
+        callType: 'tts',
+      })
+
+      console.log(
+        `[${activeTtsProvider() === 'inworld' ? 'Inworld' : 'ElevenLabs'}] ${needsGesture ? 'Queued for tap' : 'Playing'}: ${voiceName} (${voiceId})`,
+      )
+
+      if (needsGesture) {
+        await queueTtsBlobForUserGesture(blob, { onStart, onEnd, onError })
+        return
+      }
+
+      await playBlob(blob, { onStart, onEnd, onError })
+      return
+    } catch (error) {
+      if (controller.signal.aborted) throw error
+      lastError = error instanceof Error ? error.message : String(error)
+      if (lastError.includes('credits khatam') || lastError.includes('API key invalid')) {
+        throw error
+      }
+    }
+  }
+
+  throw new Error(lastError)
+}

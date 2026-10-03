@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Axerai MVP — Technical & Product Document</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0a0e14;
+      --ink-soft: #141c28;
+      --surface: #ffffff;
+      --surface-muted: #f1f5f9;
+      --border: #dde4ed;
+      --gold: #c9a227;
+      --gold-light: #e8c547;
+      --gold-bg: #fef9e7;
+      --teal: #0d9488;
+      --teal-bg: #ecfdf5;
+      --blue: #2563eb;
+      --blue-bg: #eff6ff;
+      --rose: #be123c;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --page-w: 297mm;
+      --page-h: 210mm;
+      --pad-x: 14mm;
+      --pad-y: 11mm;
+    }
+
+    @page { size: 297mm 210mm; margin: 0; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: #c8d0da;
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 9.5pt;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .toolbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+      background: var(--ink); color: #fff; padding: 12px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .toolbar button {
+      background: linear-gradient(135deg, var(--gold-light), var(--gold));
+      color: var(--ink); border: none; padding: 9px 20px; border-radius: 8px;
+      font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    body { padding-top: 48px; }
+
+    .doc { margin: 16px auto; width: var(--page-w); }
+
+    /* ── Landscape page shell ── */
+    .page {
+      width: var(--page-w);
+      height: var(--page-h);
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .page:last-child { page-break-after: auto; break-after: auto; margin-bottom: 0; }
+
+    .page-inner {
+      padding: var(--pad-y) var(--pad-x);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    @media print {
+      body { background: #fff; padding-top: 0; }
+      .toolbar { display: none !important; }
+      .doc { margin: 0; width: auto; }
+      .page { margin: 0; box-shadow: none; height: var(--page-h); }
+      @page { size: A4 landscape; margin: 0; }
+    }
+
+    /* ── Cover (full bleed landscape) ── */
+    .page-cover {
+      background: linear-gradient(125deg, #060a10 0%, #0f1824 35%, #152238 65%, #1a3050 100%);
+      color: #fff;
+      padding: 0;
+    }
+    .page-cover::before {
+      content: "";
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 85% 50%, rgba(201,162,39,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 10% 80%, rgba(13,148,136,0.12) 0%, transparent 50%),
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: auto, auto, 24px 24px, 24px 24px;
+      pointer-events: none;
+    }
+    .cover-layout {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      height: 100%;
+      padding: 16mm 18mm;
+      gap: 12mm;
+    }
+    .cover-left { display: flex; flex-direction: column; justify-content: center; }
+    .cover-brand {
+      display: flex; align-items: baseline; gap: 14px;
+      margin-bottom: 28px; flex-wrap: wrap;
+    }
+    .cover-brand-name {
+      font-size: 42px; font-weight: 700; letter-spacing: 0.06em;
+      color: var(--gold-light);
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    .cover-brand-line {
+      font-size: 15px; font-weight: 400; font-style: italic;
+      color: rgba(255,255,255,0.75);
+      font-family: "Instrument Serif", Georgia, serif;
+      letter-spacing: 0.01em;
+    }
+    .cover-brand-line::before {
+      content: "—"; margin-right: 8px; color: var(--gold); font-style: normal;
+    }
+    .cover h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 46px; font-weight: 400; line-height: 1.1;
+      margin-bottom: 14px; letter-spacing: -0.01em;
+    }
+    .cover h1 em { font-style: italic; color: var(--gold-light); }
+    .cover-sub {
+      font-size: 13px; color: rgba(255,255,255,0.82);
+      max-width: 420px; margin-bottom: 22px; line-height: 1.65;
+    }
+    .cover-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+    .cover-pill {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(232,197,71,0.35);
+      padding: 7px 14px; border-radius: 6px; font-size: 10px; font-weight: 600;
+      color: rgba(255,255,255,0.92);
+    }
+    .cover-meta {
+      display: flex; gap: 28px; flex-wrap: wrap;
+      border-top: 1px solid rgba(255,255,255,0.12); padding-top: 16px;
+    }
+    .cover-meta-item label {
+      display: block; font-size: 8px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 4px;
+    }
+    .cover-meta-item strong { font-size: 13px; color: var(--gold-light); font-weight: 600; }
+    .cover-right { display: flex; align-items: center; justify-content: center; }
+    .cover-visual { width: 100%; max-width: 340px; }
+
+    /* ── Page chrome ── */
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 8px; margin-bottom: 10px;
+      border-bottom: 2px solid var(--ink);
+      flex-shrink: 0;
+    }
+    .ph-brand { display: flex; align-items: baseline; gap: 10px; }
+    .ph-brand strong {
+      font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+      color: var(--ink); text-transform: uppercase;
+    }
+    .ph-brand span {
+      font-size: 10px; color: var(--text-muted); font-style: italic;
+      font-family: "Instrument Serif", Georgia, serif;
+    }
+    .ph-doc { font-size: 8px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .page-body { flex: 1; min-height: 0; }
+
+    .page-footer {
+      flex-shrink: 0;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between;
+      font-size: 7.5pt; color: var(--text-muted);
+    }
+
+    /* ── Typography ── */
+    .section-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; background: var(--ink); color: var(--gold-light);
+      font-size: 11px; font-weight: 700; border-radius: 6px; margin-right: 8px; flex-shrink: 0;
+    }
+    h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 22px; font-weight: 400; color: var(--ink);
+      margin: 0 0 12px; display: flex; align-items: center;
+      page-break-after: avoid;
+    }
+    h2.cont { margin-top: 14px; }
+    h2.cont .section-num { background: var(--text-muted); font-size: 9px; width: auto; padding: 0 8px; border-radius: 4px; }
+    h3 {
+      font-size: 10px; font-weight: 700; color: var(--ink);
+      margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.07em;
+      page-break-after: avoid;
+    }
+    p { margin-bottom: 8px; }
+    .lead { font-size: 10.5pt; color: var(--text-muted); margin-bottom: 12px; }
+
+    /* ── Layout ── */
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .row-55-45 { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 14px; }
+    .row-45-55 { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 14px; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .card-gold { background: var(--gold-bg); border-color: #eadfaa; }
+    .card-teal { background: var(--teal-bg); border-color: #99f6e4; }
+    .card-blue { background: var(--blue-bg); border-color: #bfdbfe; }
+    .card-label {
+      font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 5px;
+    }
+    .card h4 { font-size: 12px; font-weight: 700; margin-bottom: 5px; color: var(--ink); }
+    .card p { font-size: 9pt; margin: 0; color: var(--text-muted); line-height: 1.5; }
+
+    table {
+      width: 100%; border-collapse: collapse; font-size: 8.5pt;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    th {
+      background: var(--ink); color: #fff; font-weight: 600; text-align: left;
+      padding: 7px 10px; font-size: 7.5px; letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--surface-muted); }
+
+    .diagram-wrap {
+      background: var(--surface-muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; margin: 10px 0;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .diagram-title {
+      font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-muted);
+      margin-bottom: 8px; text-align: center;
+    }
+    .diagram-wrap svg { display: block; width: 100%; height: auto; }
+
+    .flow-h {
+      display: flex; align-items: stretch; margin: 10px 0;
+      page-break-inside: avoid; break-inside: avoid;
+    }
+    .flow-node {
+      flex: 1; background: var(--surface-muted); border: 1px solid var(--border);
+      padding: 8px 6px; text-align: center;
+    }
+    .flow-node:first-child { border-radius: 8px 0 0 8px; }
+    .flow-node:last-child { border-radius: 0 8px 8px 0; }
+    .flow-node.hl { background: var(--gold-bg); border-color: #e8d5a3; }
+    .flow-node .fn-n { font-size: 8px; font-weight: 700; color: var(--gold); }
+    .flow-node .fn-t { font-size: 9.5px; font-weight: 700; color: var(--ink); }
+    .flow-node .fn-s { font-size: 8px; color: var(--text-muted); margin-top: 2px; }
+    .flow-arr { display: flex; align-items: center; width: 18px; justify-content: center; color: #94a3b8; font-size: 12px; flex-shrink: 0; }
+
+    .layer-row {
+      display: grid; grid-template-columns: 72px 1fr; gap: 10px;
+      margin-bottom: 8px; page-break-inside: avoid; break-inside: avoid;
+    }
+    .layer-badge {
+      padding: 8px 4px; border-radius: 8px; text-align: center;
+      font-weight: 700; font-size: 9px; line-height: 1.3;
+    }
+    .layer-a { background: var(--teal); color: #fff; }
+    .layer-b { background: var(--blue); color: #fff; }
+    .layer-c { background: var(--ink-soft); color: #fff; }
+    .layer-body {
+      background: var(--surface-muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .layer-body h4 { font-size: 11px; margin-bottom: 4px; }
+    .layer-body p { font-size: 8.5pt; margin: 0; color: var(--text-muted); line-height: 1.45; }
+
+    .callout {
+      border-left: 3px solid var(--gold); background: var(--gold-bg);
+      padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0;
+      font-size: 9pt; page-break-inside: avoid; break-inside: avoid;
+    }
+    .callout-teal { border-left-color: var(--teal); background: var(--teal-bg); }
+
+    .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+    .toc { list-style: none; }
+    .toc li {
+      display: flex; gap: 10px; padding: 7px 0;
+      border-bottom: 1px dotted var(--border); font-size: 10pt;
+    }
+    .toc li span:first-child { color: var(--gold); font-weight: 700; min-width: 24px; }
+    .toc li span:last-child { color: var(--text); }
+
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+    .stat {
+      text-align: center; padding: 12px 8px;
+      background: var(--surface-muted); border-radius: 8px; border: 1px solid var(--border);
+    }
+    .stat-val { font-size: 18px; font-weight: 700; color: var(--ink); display: block; }
+    .stat-lbl { font-size: 7.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 3px; display: block; }
+
+    code {
+      font-family: Consolas, monospace; font-size: 8pt;
+      background: var(--surface-muted); padding: 1px 5px; border-radius: 3px; color: var(--rose);
+    }
+
+    .arch-row {
+      display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 6px;
+      align-items: center; margin: 10px 0;
+    }
+    .arch-box {
+      border: 2px solid var(--border); border-radius: 8px;
+      padding: 12px; text-align: center; background: var(--surface);
+    }
+    .arch-box.primary { border-color: var(--gold); background: var(--gold-bg); }
+    .arch-box .ab-t { font-size: 10px; font-weight: 700; }
+    .arch-box .ab-s { font-size: 8px; color: var(--text-muted); margin-top: 3px; }
+    .arch-conn { color: #94a3b8; font-size: 16px; text-align: center; }
+
+    .img-panel {
+      border-radius: 8px; overflow: hidden; border: 1px solid var(--border);
+      background: var(--surface-muted);
+    }
+    .img-panel img { width: 100%; height: auto; display: block; }
+    .img-caption {
+      font-size: 8px; color: var(--text-muted); text-align: center;
+      padding: 6px; background: var(--surface-muted);
+    }
+
+    .mouth-row {
+      display: grid; grid-template-columns: 1fr 20px 1fr 20px 1fr; gap: 4px;
+      align-items: center; margin: 8px 0;
+    }
+    .mouth-step {
+      background: var(--surface-muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px; text-align: center; font-size: 8pt;
+    }
+    .mouth-step strong { display: block; font-size: 9pt; margin-bottom: 3px; color: var(--ink); }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span>Axerai MVP · Landscape A4 · Print → Save as PDF</span>
+  <button type="button" onclick="window.print()">Download PDF</button>
+</div>
+
+<div class="doc">
+
+<!-- ═══ PAGE 1 — COVER ═══ -->
+<div class="page page-cover">
+  <div class="cover-layout">
+    <div class="cover-left">
+      <div class="cover-brand">
+        <div class="cover-brand-name">Axerai</div>
+        <div class="cover-brand-line">Products receive digital life</div>
+      </div>
+      <h1>Connected Packaging<br /><em>Operating System</em></h1>
+      <p class="cover-sub">Technical &amp; Product Document — WebAR experience, AI conversation, Inworld voice synthesis, and persistent ledger memory for physical products.</p>
+      <div class="cover-pills">
+        <span class="cover-pill">App-less WebAR</span>
+        <span class="cover-pill">3-Layer Verify</span>
+        <span class="cover-pill">Gemini Flash-Lite</span>
+        <span class="cover-pill">Inworld TTS</span>
+        <span class="cover-pill">Supabase Ledger</span>
+      </div>
+      <div class="cover-meta">
+        <div class="cover-meta-item"><label>Example Product Code</label><strong>AXE-327T5</strong></div>
+        <div class="cover-meta-item"><label>Technology Stack</label><strong>React · Vite · Three.js · MindAR</strong></div>
+        <div class="cover-meta-item"><label>Document Version</label><strong>July 2026 Pilot</strong></div>
+        <div class="cover-meta-item"><label>Classification</label><strong>Confidential</strong></div>
+      </div>
+    </div>
+    <div class="cover-right">
+      <svg class="cover-visual" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#e8c547"/><stop offset="100%" stop-color="#0d9488"/>
+          </linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <!-- Phone frame -->
+        <rect x="60" y="30" width="160" height="260" rx="18" fill="#0a0e14" stroke="#e8c547" stroke-width="2"/>
+        <rect x="72" y="50" width="136" height="200" rx="4" fill="#152238"/>
+        <!-- AR view inside phone -->
+        <rect x="72" y="50" width="136" height="200" rx="4" fill="url(#cg)" opacity="0.15"/>
+        <!-- Product box in AR -->
+        <rect x="95" y="130" width="90" height="70" rx="4" fill="#1a3050" stroke="#e8c547" stroke-width="1.5"/>
+        <text x="140" y="158" text-anchor="middle" font-size="8" fill="#e8c547" font-weight="600">AXE-327T5</text>
+        <rect x="105" y="165" width="70" height="8" rx="2" fill="#e8c547" opacity="0.4"/>
+        <rect x="105" y="178" width="50" height="6" rx="2" fill="#fff" opacity="0.2"/>
+        <!-- 3D Persona -->
+        <ellipse cx="140" cy="108" rx="22" ry="28" fill="#0d9488" opacity="0.9"/>
+        <circle cx="140" cy="88" r="16" fill="#fef9e7"/>
+        <ellipse cx="140" cy="88" rx="14" ry="15" fill="#f4d4a0"/>
+        <circle cx="134" cy="86" r="2" fill="#1a2332"/><circle cx="146" cy="86" r="2" fill="#1a2332"/>
+        <path d="M136 94 Q140 98 144 94" stroke="#be123c" stroke-width="1.5" fill="none"/>
+        <!-- Scan rays -->
+        <line x1="72" y1="100" x2="95" y2="120" stroke="#0d9488" stroke-width="1" opacity="0.6"/>
+        <line x1="208" y1="100" x2="185" y2="120" stroke="#0d9488" stroke-width="1" opacity="0.6"/>
+        <circle cx="140" cy="120" r="55" fill="none" stroke="#e8c547" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+        <!-- Voice waves -->
+        <path d="M140 255 Q130 248 140 241 Q150 248 140 255" fill="#e8c547" opacity="0.8"/>
+        <path d="M120 255 Q105 240 120 225 Q135 240 120 255" fill="none" stroke="#e8c547" stroke-width="1.5" opacity="0.5"/>
+        <path d="M160 255 Q175 240 160 225 Q145 240 160 255" fill="none" stroke="#e8c547" stroke-width="1.5" opacity="0.5"/>
+        <!-- Floating labels -->
+        <rect x="240" y="60" width="130" height="36" rx="8" fill="rgba(13,148,136,0.25)" stroke="#0d9488"/>
+        <text x="305" y="82" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">Layer A — Instant</text>
+        <rect x="240" y="110" width="130" height="36" rx="8" fill="rgba(37,99,235,0.25)" stroke="#2563eb"/>
+        <text x="305" y="132" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">Layer B — Verify</text>
+        <rect x="240" y="160" width="130" height="36" rx="8" fill="rgba(20,28,40,0.6)" stroke="#64748b"/>
+        <text x="305" y="182" text-anchor="middle" font-size="10" fill="#fff" font-weight="600">Layer C — Liveness</text>
+        <!-- Connection lines -->
+        <path d="M208 78 L240 78" stroke="#0d9488" stroke-width="1.5" marker-end="url(#arr)"/>
+        <path d="M208 128 L240 128" stroke="#2563eb" stroke-width="1.5"/>
+        <path d="M208 178 L240 178" stroke="#64748b" stroke-width="1.5"/>
+        <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#0d9488"/></marker></defs>
+        <!-- Gemini + Inworld badges -->
+        <rect x="240" y="230" width="62" height="28" rx="6" fill="#eff6ff" stroke="#2563eb"/>
+        <text x="271" y="248" text-anchor="middle" font-size="9" fill="#2563eb" font-weight="700">Gemini</text>
+        <rect x="312" y="230" width="62" height="28" rx="6" fill="#fef9e7" stroke="#c9a227"/>
+        <text x="343" y="248" text-anchor="middle" font-size="9" fill="#c9a227" font-weight="700">Inworld</text>
+        <text x="305" y="285" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.5)">Scan → Persona → Voice → Memory</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 2 — TOC ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">MVP Technical Document · Confidential</div>
+    </div>
+    <div class="page-body">
+      <h2><span class="section-num">§</span>Contents</h2>
+      <div class="row-55-45">
+        <div>
+          <div class="toc-grid">
+            <ul class="toc">
+              <li><span>01</span><span>Executive Overview</span></li>
+              <li><span>02</span><span>Technology Stack</span></li>
+              <li><span>03</span><span>End-to-End User Journey</span></li>
+              <li><span>04</span><span>Three-Layer Verification Architecture</span></li>
+              <li><span>05</span><span>System Architecture Diagram</span></li>
+              <li><span>06</span><span>D3 Character — Animation &amp; Lip Sync</span></li>
+            </ul>
+            <ul class="toc">
+              <li><span>07</span><span>AI Brain (Google Gemini)</span></li>
+              <li><span>08</span><span>Voice Pipeline (Inworld API)</span></li>
+              <li><span>09</span><span>Speech-to-Text &amp; Live Mic</span></li>
+              <li><span>10</span><span>Ledger, Memory &amp; Token Metering</span></li>
+              <li><span>11</span><span>Deployment &amp; Security</span></li>
+              <li><span>12</span><span>Project Structure</span></li>
+            </ul>
+          </div>
+          <div class="stat-row">
+            <div class="stat"><span class="stat-val">0</span><span class="stat-lbl">App Install Required</span></div>
+            <div class="stat"><span class="stat-val">3</span><span class="stat-lbl">Verification Layers</span></div>
+            <div class="stat"><span class="stat-val">2</span><span class="stat-lbl">Roles Per Code</span></div>
+            <div class="stat"><span class="stat-val">FBX</span><span class="stat-lbl">3D Persona Model</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="diagram-wrap" style="margin-top:0;">
+            <div class="diagram-title">Axerai Platform at a Glance</div>
+            <svg viewBox="0 0 420 200" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="70" width="90" height="60" rx="8" fill="#fef9e7" stroke="#c9a227" stroke-width="1.5"/>
+              <text x="55" y="95" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="700">Physical</text>
+              <text x="55" y="110" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="700">Packaging</text>
+              <text x="55" y="125" text-anchor="middle" font-size="8" fill="#64748b">QR + Code</text>
+              <path d="M100 100 L130 100" stroke="#c9a227" stroke-width="2" marker-end="url(#a1)"/>
+              <rect x="130" y="60" width="100" height="80" rx="8" fill="#ecfdf5" stroke="#0d9488" stroke-width="1.5"/>
+              <text x="180" y="88" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="700">WebAR</text>
+              <text x="180" y="103" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="700">Session</text>
+              <text x="180" y="120" text-anchor="middle" font-size="8" fill="#64748b">MindAR + Three.js</text>
+              <path d="M230 100 L260 100" stroke="#0d9488" stroke-width="2" marker-end="url(#a1)"/>
+              <rect x="260" y="55" width="150" height="90" rx="8" fill="#0f1824"/>
+              <text x="335" y="82" text-anchor="middle" font-size="9" fill="#e8c547" font-weight="700">AI Conversation</text>
+              <text x="335" y="98" text-anchor="middle" font-size="8" fill="#94a3b8">Gemini Brain · Inworld Voice</text>
+              <text x="335" y="114" text-anchor="middle" font-size="8" fill="#94a3b8">Ledger Memory · Token Meter</text>
+              <rect x="280" y="125" width="50" height="14" rx="3" fill="#2563eb" opacity="0.8"/>
+              <rect x="340" y="125" width="50" height="14" rx="3" fill="#c9a227" opacity="0.8"/>
+              <rect x="180" y="155" width="150" height="30" rx="6" fill="#eff6ff" stroke="#2563eb"/>
+              <text x="255" y="175" text-anchor="middle" font-size="8" fill="#2563eb">Supabase — persistent per-code memory</text>
+              <path d="M335 145 L335 155 L255 155" stroke="#2563eb" stroke-width="1" stroke-dasharray="3"/>
+              <defs><marker id="a1" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#c9a227"/></marker></defs>
+            </svg>
+          </div>
+          <div class="callout" style="margin-top:12px;">
+            <strong>Axerai philosophy:</strong> Every physical product can receive digital life — scan the packaging, meet the brand persona, converse naturally, and carry memory across every interaction.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 2</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 3 — OVERVIEW + STACK ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 01–02</div>
+    </div>
+    <div class="page-body">
+      <div class="row-2">
+        <div>
+          <h2><span class="section-num">1</span>Executive Overview</h2>
+          <p class="lead">Axerai transforms physical product packaging into an intelligent, conversational digital touchpoint — without requiring a native mobile application.</p>
+          <div class="card card-gold" style="margin-bottom:10px;">
+            <div class="card-label">What it is</div>
+            <h4>AI-Native Packaging OS (MVP)</h4>
+            <p>Consumer scans QR / image target on box → 3D persona anchors on product → natural voice conversation via Gemini + Inworld. Memory persists per product code across sessions.</p>
+          </div>
+          <div class="card card-teal">
+            <div class="card-label">What it is not</div>
+            <h4>Not a static QR website</h4>
+            <p>Not a chatbot widget. Not a brochure. The packaging becomes a living brand ambassador with memory, verification, and voice — patent-pending 3-layer architecture.</p>
+          </div>
+        </div>
+        <div>
+          <h2><span class="section-num">2</span>Technology Stack</h2>
+          <table>
+            <tr><th>Layer</th><th>Technology</th><th>Role</th></tr>
+            <tr><td>Frontend</td><td>React 19 + Vite 8 + Tailwind 4</td><td>UI, state, mobile shell</td></tr>
+            <tr><td>3D / AR</td><td>Three.js + MindAR</td><td>Image target tracking, persona anchor</td></tr>
+            <tr><td>Character</td><td>FBX (Mixamo rig + morph targets)</td><td>Idle/talk animations, mouth open/close</td></tr>
+            <tr><td>AI Brain</td><td>Google Gemini 3.1 Flash-Lite</td><td>Chat, verify vision, session summary</td></tr>
+            <tr><td>Voice TTS</td><td>Inworld API (cloned persona)</td><td>Brand voice output</td></tr>
+            <tr><td>STT</td><td>Browser Web Speech API (en-IN)</td><td>Live microphone input</td></tr>
+            <tr><td>Database</td><td>Supabase PostgreSQL</td><td>Ledger, memory, token logs</td></tr>
+            <tr><td>Hosting</td><td>Netlify + Serverless Functions</td><td>Static deploy + secure API proxy</td></tr>
+          </table>
+          <div class="img-panel" style="margin-top:10px;">
+            <img src="assets/axerai-interaction-budget.png" alt="Axerai interaction economics overview" />
+            <div class="img-caption">Per-interaction economics — AI + voice token budget model</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 3</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 4 — USER JOURNEY ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 03</div>
+    </div>
+    <div class="page-body">
+      <h2><span class="section-num">3</span>End-to-End User Journey</h2>
+      <div class="flow-h">
+        <div class="flow-node"><div class="fn-n">01</div><div class="fn-t">Open URL</div><div class="fn-s">Browser</div></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node"><div class="fn-n">02</div><div class="fn-t">Camera Grant</div><div class="fn-s">User gesture</div></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node hl"><div class="fn-n">03</div><div class="fn-t">Target Track</div><div class="fn-s">MindAR</div></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node hl"><div class="fn-n">04</div><div class="fn-t">Persona Live</div><div class="fn-s">Layer A</div></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node"><div class="fn-n">05</div><div class="fn-t">Verify B+C</div><div class="fn-s">Background</div></div>
+        <div class="flow-arr">→</div>
+        <div class="flow-node"><div class="fn-n">06</div><div class="fn-t">Voice Chat</div><div class="fn-s">Gemini + Inworld</div></div>
+      </div>
+      <div class="row-55-45">
+        <div>
+          <div class="diagram-wrap">
+            <div class="diagram-title">User Journey Timeline</div>
+            <svg viewBox="0 0 520 120" xmlns="http://www.w3.org/2000/svg">
+              <defs><linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#0d9488"/><stop offset="100%" stop-color="#2563eb"/></linearGradient></defs>
+              <line x1="30" y1="55" x2="490" y2="55" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round"/>
+              <line x1="30" y1="55" x2="230" y2="55" stroke="url(#tg)" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="30" cy="55" r="8" fill="#1a2332"/><circle cx="90" cy="55" r="8" fill="#1a2332"/>
+              <circle cx="150" cy="55" r="8" fill="#0d9488"/>
+              <circle cx="210" cy="55" r="11" fill="#c9a227" stroke="#fff" stroke-width="2"/>
+              <circle cx="270" cy="55" r="8" fill="#2563eb"/><circle cx="330" cy="55" r="8" fill="#2563eb"/>
+              <circle cx="390" cy="55" r="8" fill="#1a2332"/><circle cx="450" cy="55" r="8" fill="#1a2332"/>
+              <text x="30" y="82" text-anchor="middle" font-size="8" fill="#64748b">Load</text>
+              <text x="90" y="82" text-anchor="middle" font-size="8" fill="#64748b">Camera</text>
+              <text x="150" y="82" text-anchor="middle" font-size="8" fill="#64748b">Scan</text>
+              <text x="210" y="82" text-anchor="middle" font-size="8" fill="#c9a227" font-weight="bold">Persona</text>
+              <text x="270" y="82" text-anchor="middle" font-size="8" fill="#64748b">Verify</text>
+              <text x="330" y="82" text-anchor="middle" font-size="8" fill="#64748b">Unlock</text>
+              <text x="390" y="82" text-anchor="middle" font-size="8" fill="#64748b">Chat</text>
+              <text x="450" y="82" text-anchor="middle" font-size="8" fill="#64748b">Exit</text>
+              <text x="210" y="35" text-anchor="middle" font-size="9" fill="#c9a227" font-weight="600">Stage 1 — Instant Reveal</text>
+            </svg>
+          </div>
+          <h3>Phase Breakdown</h3>
+          <div class="row-2">
+            <div class="card"><h4>Intro &amp; Permissions</h4><p>Asset preload (FBX, MindAR target, card video). Camera on user gesture. Back camera preferred.</p></div>
+            <div class="card"><h4>AR Session</h4><p>MindAR tracks packaging target. Product video on anchor plane. Persona mounts same anchor.</p></div>
+            <div class="card"><h4>Conversation</h4><p>Live mic STT → Gemini reply → Inworld TTS. Mic released while AI speaks. Tap-to-fix on transcript.</p></div>
+            <div class="card"><h4>Session End</h4><p>Summary + KNOWN FACTS saved. Axerai AI tokens + voice tokens logged per code.</p></div>
+          </div>
+        </div>
+        <div>
+          <div class="img-panel">
+            <img src="assets/inworld-gemini-interaction-budget.png" alt="Voice and AI interaction flow" />
+            <div class="img-caption">Gemini + Inworld per-turn cost model</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 4</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 5 — 3-LAYER VERIFY (part 1) ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 04</div>
+    </div>
+    <div class="page-body">
+      <h2><span class="section-num">4</span>Three-Layer Verification Architecture</h2>
+      <div class="callout callout-teal">
+        <strong>Core logic:</strong> Layer A is the fast visibility engine — persona appears immediately when product is detected. Layers B and C run in the <strong>background</strong> and return true/false without blocking Stage 1 reveal. One verify cycle per session.
+      </div>
+      <div class="row-55-45">
+        <div>
+          <div class="layer-row">
+            <div class="layer-badge layer-a">Layer A<br/><span style="font-size:8px;font-weight:400">FAST</span></div>
+            <div class="layer-body">
+              <h4>Product Visibility Engine</h4>
+              <p><strong>Trigger:</strong> Physical product / image target visible in camera.<br />
+              <strong>Action:</strong> Instantly reveal 3D persona on packaging anchor (Stage 1).<br />
+              <strong>Output:</strong> Persona live · AR session active.</p>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-badge layer-b">Layer B<br/><span style="font-size:8px;font-weight:400">BG</span></div>
+            <div class="layer-body">
+              <h4>Product Code / Brand Verification</h4>
+              <p><strong>Trigger:</strong> After Layer A — background Gemini vision on captured frame.<br />
+              <strong>Action:</strong> Verifies brand text / product code (e.g. <code>AXE-327T5</code>).<br />
+              <strong>Output:</strong> <code>true</code> = authentic · <code>false</code> = wrong/missing.</p>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-badge layer-c">Layer C<br/><span style="font-size:8px;font-weight:400">BG</span></div>
+            <div class="layer-body">
+              <h4>Liveness / Anti-Spoof</h4>
+              <p><strong>Trigger:</strong> Parallel with Layer B — background.<br />
+              <strong>Action:</strong> Detects real product vs photo-on-screen, monitor replay, printed spoof.<br />
+              <strong>Output:</strong> <code>true</code> = live product · <code>false</code> = spoof detected.</p>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="diagram-wrap">
+            <div class="diagram-title">Verification Timing — Layer A First, B+C Background</div>
+            <svg viewBox="0 0 380 220" xmlns="http://www.w3.org/2000/svg">
+              <text x="10" y="18" font-size="9" fill="#64748b">TIME →</text>
+              <rect x="10" y="35" width="80" height="32" rx="6" fill="#0d9488"/>
+              <text x="50" y="56" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">Layer A</text>
+              <text x="50" y="68" text-anchor="middle" font-size="7" fill="#fff">Persona ON</text>
+              <rect x="90" y="80" width="200" height="32" rx="6" fill="#2563eb"/>
+              <text x="190" y="100" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">Layer B — Code / Brand Verify</text>
+              <rect x="90" y="125" width="200" height="32" rx="6" fill="#141c28"/>
+              <text x="190" y="145" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">Layer C — Liveness Check</text>
+              <rect x="300" y="102" width="70" height="32" rx="6" fill="#c9a227"/>
+              <text x="335" y="122" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">true/false</text>
+              <line x1="290" y1="96" x2="300" y2="112" stroke="#cbd5e1" stroke-width="1.5"/>
+              <line x1="290" y1="141" x2="300" y2="126" stroke="#cbd5e1" stroke-width="1.5"/>
+              <text x="190" y="175" text-anchor="middle" font-size="8" fill="#64748b">Results stored · 1 cycle / session · patent-pending</text>
+              <!-- Layer diagram -->
+              <rect x="10" y="190" width="360" height="24" rx="4" fill="#ecfdf5" stroke="#0d9488"/>
+              <text x="190" y="206" text-anchor="middle" font-size="8" fill="#0d9488">User sees persona instantly — verification never blocks first impression</text>
+            </svg>
+          </div>
+          <div class="img-panel" style="margin-top:10px;">
+            <img src="assets/ten-brands-3to5m-interactions.png" alt="Scale architecture reference" />
+            <div class="img-caption">Multi-brand scale reference — per-code isolation model</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 5</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 6 — SYSTEM ARCH ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 05</div>
+    </div>
+    <div class="page-body">
+      <h2><span class="section-num">5</span>System Architecture</h2>
+      <div class="arch-row">
+        <div class="arch-box"><div class="ab-t">📱 Mobile Browser</div><div class="ab-s">WebAR · STT · UI</div></div>
+        <div class="arch-conn">↔</div>
+        <div class="arch-box primary"><div class="ab-t">⚡ Netlify Edge</div><div class="ab-s">Static + Functions</div></div>
+        <div class="arch-conn">↔</div>
+        <div class="arch-box"><div class="ab-t">☁️ Cloud APIs</div><div class="ab-s">Gemini · Inworld · Supabase</div></div>
+      </div>
+      <div class="diagram-wrap">
+        <div class="diagram-title">Data Flow — One Conversation Turn</div>
+        <svg viewBox="0 0 900 200" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="15" width="110" height="45" rx="8" fill="#f1f5f9" stroke="#dde4ed"/>
+          <text x="65" y="36" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">User speaks</text>
+          <text x="65" y="50" text-anchor="middle" font-size="7" fill="#64748b">Browser STT</text>
+          <rect x="140" y="15" width="110" height="45" rx="8" fill="#f1f5f9" stroke="#dde4ed"/>
+          <text x="195" y="36" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Text sent</text>
+          <text x="195" y="50" text-anchor="middle" font-size="7" fill="#64748b">Tap to fix</text>
+          <rect x="270" y="15" width="110" height="45" rx="8" fill="#eff6ff" stroke="#2563eb"/>
+          <text x="325" y="36" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Gemini</text>
+          <text x="325" y="50" text-anchor="middle" font-size="7" fill="#64748b">Axerai AI tokens</text>
+          <rect x="400" y="15" width="110" height="45" rx="8" fill="#fef9e7" stroke="#c9a227"/>
+          <text x="455" y="36" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Inworld</text>
+          <text x="455" y="50" text-anchor="middle" font-size="7" fill="#64748b">Voice tokens</text>
+          <rect x="530" y="15" width="110" height="45" rx="8" fill="#ecfdf5" stroke="#0d9488"/>
+          <text x="585" y="36" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Persona</text>
+          <text x="585" y="50" text-anchor="middle" font-size="7" fill="#64748b">Talk + mouth</text>
+          <rect x="660" y="15" width="110" height="45" rx="8" fill="#f1f5f9" stroke="#dde4ed"/>
+          <text x="715" y="36" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Ledger log</text>
+          <text x="715" y="50" text-anchor="middle" font-size="7" fill="#64748b">Supabase</text>
+          <path d="M120 37 L140 37" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M250 37 L270 37" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M380 37 L400 37" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M510 37 L530 37" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#ar)"/>
+          <path d="M640 37 L660 37" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#ar)"/>
+          <rect x="140" y="85" width="500" height="50" rx="8" fill="#0f1824"/>
+          <text x="390" y="108" text-anchor="middle" font-size="10" fill="#e8c547" font-weight="600">Supabase Ledger — conversation · summaries · KNOWN FACTS · token logs</text>
+          <text x="390" y="124" text-anchor="middle" font-size="8" fill="#94a3b8">Max 2 threads per code (sender + receiver) · device_id scoped</text>
+          <path d="M325 60 L325 85" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3" marker-end="url(#ar)"/>
+          <path d="M715 60 L715 72 L390 72 L390 85" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3"/>
+          <rect x="10" y="155" width="880" height="38" rx="8" fill="#fff1f2" stroke="#fecdd3"/>
+          <text x="450" y="172" text-anchor="middle" font-size="9" fill="#be123c" font-weight="600">Mic fully released while AI thinks or speaks — prevents Android STT conflict &amp; iPhone echo</text>
+          <text x="450" y="186" text-anchor="middle" font-size="8" fill="#64748b">Live mic UI hidden during TTS playback · Tap-to-fix pauses auto-send timer</text>
+          <defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#cbd5e1"/></marker></defs>
+        </svg>
+      </div>
+      <div class="row-3" style="margin-top:8px;">
+        <div class="card card-blue"><h4>Secure Proxy</h4><p>All Gemini + Inworld calls routed through Netlify functions. API keys never exposed in browser bundle.</p></div>
+        <div class="card"><h4>Per-Code Isolation</h4><p>Each product code (e.g. AXE-327T5) has independent memory, token budget, and sender/receiver roles.</p></div>
+        <div class="card card-gold"><h4>Admin Dashboard</h4><p>Hidden path (VITE_DASHBOARD_PATH) for brand operators to monitor usage, codes, and session data.</p></div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 6</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 7 — D3 CHARACTER ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 06</div>
+    </div>
+    <div class="page-body">
+      <h2><span class="section-num">6</span>D3 Character — Animation &amp; Lip Sync</h2>
+      <div class="row-3">
+        <div class="card"><div class="card-label">Mesh</div><h4>FBX Skinned</h4><p>Mixamo-style rig on AR anchor. Scale 0.008 · position tuned to product packaging.</p></div>
+        <div class="card"><div class="card-label">Idle</div><h4>idle.fbx</h4><p>Standing loop when persona silent. Crossfade 0.35s — no T-pose flash on transition.</p></div>
+        <div class="card"><div class="card-label">Talk</div><h4>talking 4/5/6</h4><p>Random talk clip while speaking. Switches only when audio actually starts playing.</p></div>
+      </div>
+      <div class="row-55-45">
+        <div>
+          <h3>Mouth Open / Close Pipeline</h3>
+          <div class="mouth-row">
+            <div class="mouth-step"><strong>Inworld Audio</strong>MP3 playback via hidden audio element</div>
+            <div style="text-align:center;color:#cbd5e1;">→</div>
+            <div class="mouth-step"><strong>Audio Analyser</strong>Mouth level 0→1. iPhone: procedural fallback</div>
+            <div style="text-align:center;color:#cbd5e1;">→</div>
+            <div class="mouth-step"><strong>Morph Target</strong><code>mouth open</code> shape key every frame</div>
+          </div>
+          <div class="diagram-wrap">
+            <div class="diagram-title">Character State Machine</div>
+            <svg viewBox="0 0 520 100" xmlns="http://www.w3.org/2000/svg">
+              <rect x="20" y="35" width="90" height="36" rx="18" fill="#f1f5f9" stroke="#dde4ed" stroke-width="2"/>
+              <text x="65" y="58" text-anchor="middle" font-size="10" fill="#1e293b" font-weight="600">IDLE</text>
+              <rect x="210" y="35" width="90" height="36" rx="18" fill="#fef9e7" stroke="#c9a227" stroke-width="2"/>
+              <text x="255" y="58" text-anchor="middle" font-size="10" fill="#1e293b" font-weight="600">TALKING</text>
+              <rect x="400" y="35" width="90" height="36" rx="18" fill="#ecfdf5" stroke="#0d9488" stroke-width="2"/>
+              <text x="445" y="58" text-anchor="middle" font-size="10" fill="#1e293b" font-weight="600">MOUTH</text>
+              <path d="M110 53 L210 53" stroke="#c9a227" stroke-width="2" marker-end="url(#am)"/>
+              <text x="160" y="48" text-anchor="middle" font-size="7" fill="#64748b">TTS onStart</text>
+              <path d="M300 53 L400 53" stroke="#0d9488" stroke-width="2" marker-end="url(#am)"/>
+              <text x="350" y="48" text-anchor="middle" font-size="7" fill="#64748b">lip sync tick</text>
+              <path d="M255 71 Q255 88 65 88 Q65 71 65 71" stroke="#dde4ed" stroke-width="1.5" fill="none" marker-end="url(#am)"/>
+              <text x="160" y="95" text-anchor="middle" font-size="7" fill="#64748b">TTS onEnd → fade to idle</text>
+              <defs><marker id="am" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#94a3b8"/></marker></defs>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="diagram-wrap" style="margin-top:0;">
+            <div class="diagram-title">AR Persona on Product Packaging</div>
+            <svg viewBox="0 0 380 200" xmlns="http://www.w3.org/2000/svg">
+              <rect x="80" y="60" width="140" height="100" rx="6" fill="#fef9e7" stroke="#c9a227" stroke-width="2"/>
+              <text x="150" y="88" text-anchor="middle" font-size="10" fill="#c9a227" font-weight="700">PRODUCT BOX</text>
+              <text x="150" y="108" text-anchor="middle" font-size="9" fill="#64748b">AXE-327T5</text>
+              <rect x="100" y="118" width="100" height="6" rx="2" fill="#c9a227" opacity="0.4"/>
+              <ellipse cx="150" cy="45" rx="18" ry="24" fill="#0d9488"/>
+              <circle cx="150" cy="28" r="14" fill="#f4d4a0"/>
+              <circle cx="145" cy="26" r="2" fill="#1a2332"/><circle cx="155" cy="26" r="2" fill="#1a2332"/>
+              <path d="M147 32 Q150 35 153 32" stroke="#be123c" stroke-width="1" fill="none"/>
+              <rect x="260" y="40" width="100" height="140" rx="10" fill="#0f1824" stroke="#64748b"/>
+              <rect x="270" y="55" width="80" height="110" rx="4" fill="#152238"/>
+              <rect x="278" y="100" width="64" height="40" rx="3" fill="#fef9e7" opacity="0.3"/>
+              <ellipse cx="310" cy="85" rx="10" ry="14" fill="#0d9488" opacity="0.9"/>
+              <text x="310" y="175" text-anchor="middle" font-size="8" fill="#94a3b8">Phone AR View</text>
+              <path d="M220 100 L260 100" stroke="#c9a227" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#pv)"/>
+              <text x="240" y="92" text-anchor="middle" font-size="7" fill="#c9a227">anchors</text>
+              <defs><marker id="pv" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L0,5 L5,2.5 z" fill="#c9a227"/></marker></defs>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 7</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 8 — AI + VOICE + STT ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 07–09</div>
+    </div>
+    <div class="page-body">
+      <div class="row-3">
+        <div>
+          <h2><span class="section-num">7</span>AI Brain — Gemini</h2>
+          <table>
+            <tr><th>Item</th><th>Detail</th></tr>
+            <tr><td>Primary model</td><td>gemini-3.1-flash-lite</td></tr>
+            <tr><td>Fallback</td><td>gemini-flash-lite-latest</td></tr>
+            <tr><td>Persona prompt</td><td>Hinglish output, memory rules, gift scenarios</td></tr>
+            <tr><td>Memory</td><td>KNOWN FACTS (LOCKED) from ledger</td></tr>
+            <tr><td>Call types</td><td>verify · welcome · chat · summary</td></tr>
+            <tr><td>Production</td><td>Netlify function proxy — key never in browser</td></tr>
+          </table>
+        </div>
+        <div>
+          <h2><span class="section-num">8</span>Voice — Inworld</h2>
+          <div class="callout" style="margin-top:0;font-size:8.5pt;">
+            <strong>MVP voice:</strong> Inworld TTS with custom cloned brand persona. Browser speechSynthesis is fallback only.
+          </div>
+          <div class="flow-h" style="margin-top:8px;">
+            <div class="flow-node"><div class="fn-t">Clean</div></div>
+            <div class="flow-arr">→</div>
+            <div class="flow-node hl"><div class="fn-t">Inworld</div></div>
+            <div class="flow-arr">→</div>
+            <div class="flow-node"><div class="fn-t">MP3</div></div>
+            <div class="flow-arr">→</div>
+            <div class="flow-node"><div class="fn-t">Lip Sync</div></div>
+            <div class="flow-arr">→</div>
+            <div class="flow-node"><div class="fn-t">Log</div></div>
+          </div>
+        </div>
+        <div>
+          <h2><span class="section-num">9</span>STT &amp; Live Mic</h2>
+          <table>
+            <tr><th>Feature</th><th>Implementation</th></tr>
+            <tr><td>API</td><td>Web Speech API · en-IN</td></tr>
+            <tr><td>Auto-send</td><td>2200 ms silence after speech</td></tr>
+            <tr><td>Tap to fix</td><td>Edit transcript; timer paused</td></tr>
+            <tr><td>During TTS</td><td>Mic released · UI hidden</td></tr>
+            <tr><td>Android</td><td>No getUserMedia during STT</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="img-panel" style="margin-top:12px;max-height:140px;overflow:hidden;">
+        <img src="assets/real-brands-own-server-future.png" alt="Future infrastructure model" style="object-fit:cover;max-height:120px;" />
+        <div class="img-caption">Future scale path — dedicated inference server economics</div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 8</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 9 — LEDGER (part 1) ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 10</div>
+    </div>
+    <div class="page-body">
+      <h2><span class="section-num">10</span>Ledger, Memory &amp; Token Metering</h2>
+      <p>Table <code>ledger_threads</code> — maximum 2 rows per product code (sender + receiver).</p>
+      <div class="row-2">
+        <div>
+          <table>
+            <tr><th>Column</th><th>Purpose</th></tr>
+            <tr><td>verification_code</td><td>Product code e.g. AXE-327T5</td></tr>
+            <tr><td>device_id</td><td>Stable browser ID</td></tr>
+            <tr><td>role</td><td>sender | receiver</td></tr>
+            <tr><td>conversation</td><td>Full chat with session markers</td></tr>
+            <tr><td>session_summaries</td><td>Exit summaries + FACTS block</td></tr>
+            <tr><td>axerai_ai_usage</td><td>Axerai AI tokens (Gemini)</td></tr>
+            <tr><td>axerai_voice_usage</td><td>Axerai voice tokens (Inworld chars)</td></tr>
+          </table>
+        </div>
+        <div>
+          <h3>Per-Code Budget Packages (Pilot)</h3>
+          <table>
+            <tr><th>Package</th><th>Time</th><th>AI tokens</th><th>Voice tokens</th></tr>
+            <tr><td>Light</td><td>~12 min</td><td>~59,000</td><td>~4,000</td></tr>
+            <tr><td>Standard</td><td>~30 min</td><td>~1.5L</td><td>~10,000</td></tr>
+            <tr><td>Deep</td><td>~60 min</td><td>~2.9L</td><td>~20,000</td></tr>
+          </table>
+          <div class="callout" style="margin-top:10px;font-size:8.5pt;">
+            When ~200–300 Axerai voice tokens remain → persona speaks warm exit line → session ends for that code.
+          </div>
+        </div>
+      </div>
+      <div class="diagram-wrap" style="margin-top:12px;">
+        <div class="diagram-title">Memory Flow — KNOWN FACTS Injection</div>
+        <svg viewBox="0 0 900 90" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="25" width="130" height="40" rx="8" fill="#ecfdf5" stroke="#0d9488"/>
+          <text x="75" y="50" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Session Start</text>
+          <path d="M140 45 L170 45" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#lm)"/>
+          <rect x="170" y="25" width="150" height="40" rx="8" fill="#0f1824"/>
+          <text x="245" y="43" text-anchor="middle" font-size="9" fill="#e8c547" font-weight="600">Load Ledger Thread</text>
+          <text x="245" y="57" text-anchor="middle" font-size="7" fill="#94a3b8">KNOWN FACTS (LOCKED)</text>
+          <path d="M320 45 L350 45" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#lm)"/>
+          <rect x="350" y="25" width="130" height="40" rx="8" fill="#eff6ff" stroke="#2563eb"/>
+          <text x="415" y="50" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Gemini Chat</text>
+          <path d="M480 45 L510 45" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#lm)"/>
+          <rect x="510" y="25" width="130" height="40" rx="8" fill="#fef9e7" stroke="#c9a227"/>
+          <text x="575" y="50" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Session Exit</text>
+          <path d="M640 45 L670 45" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#lm)"/>
+          <rect x="670" y="25" width="150" height="40" rx="8" fill="#ecfdf5" stroke="#0d9488"/>
+          <text x="745" y="43" text-anchor="middle" font-size="9" fill="#1e293b" font-weight="600">Save Summary</text>
+          <text x="745" y="57" text-anchor="middle" font-size="7" fill="#64748b">Update FACTS + tokens</text>
+          <defs><marker id="lm" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#cbd5e1"/></marker></defs>
+        </svg>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life</span><span>Page 9</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 10 — DEPLOY + STRUCTURE ═══ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="page-header">
+      <div class="ph-brand"><strong>Axerai</strong><span>Products receive digital life</span></div>
+      <div class="ph-doc">Section 11–12</div>
+    </div>
+    <div class="page-body">
+      <div class="row-2">
+        <div>
+          <h2><span class="section-num">11</span>Deployment &amp; Security</h2>
+          <div class="row-2" style="margin-top:0;">
+            <div class="card card-blue">
+              <h4>Environment</h4>
+              <p>Local: VITE_GEMINI_API_KEY · VITE_INWORLD_ENABLED<br />Production: server-only GEMINI + INWORLD keys via Netlify functions</p>
+            </div>
+            <div class="card">
+              <h4>Security</h4>
+              <p>3-layer verify · one cycle per session · API keys on server · per-code usage caps · patent-pending architecture</p>
+            </div>
+          </div>
+          <h2 style="margin-top:14px;"><span class="section-num">12</span>Project Structure</h2>
+          <table>
+            <tr><th>File / Folder</th><th>Role</th></tr>
+            <tr><td>src/App.jsx</td><td>Main AR + chat orchestration</td></tr>
+            <tr><td>src/myraModel.js</td><td>D3 character load, animations, mouth morph</td></tr>
+            <tr><td>src/myraLipSync.js</td><td>Audio → mouth level</td></tr>
+            <tr><td>src/myraPrompt.js</td><td>AI persona system prompt + user prompts</td></tr>
+            <tr><td>src/myraLedger.js</td><td>Supabase memory + token logging</td></tr>
+            <tr><td>src/myraVerify.js</td><td>Layer B/C vision verification</td></tr>
+            <tr><td>netlify/functions/</td><td>Gemini + Inworld TTS secure proxies</td></tr>
+            <tr><td>supabase/fresh_start.sql</td><td>Full database schema</td></tr>
+            <tr><td>public/models/</td><td>FBX character + animation assets</td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="callout" style="margin-top:28px;">
+            <strong>One-line definition:</strong> Axerai MVP transforms physical packaging into an intelligent conversational touchpoint — scan, verify, persona, voice, memory — per product code <code>AXE-327T5</code>.
+          </div>
+          <div class="diagram-wrap" style="margin-top:14px;">
+            <div class="diagram-title">Axerai — Products Receive Digital Life</div>
+            <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg">
+              <rect width="400" height="280" fill="#0f1824" rx="8"/>
+              <text x="200" y="50" text-anchor="middle" font-size="28" fill="#e8c547" font-weight="700" letter-spacing="0.08em">AXERAI</text>
+              <text x="200" y="78" text-anchor="middle" font-size="13" fill="rgba(255,255,255,0.7)" font-style="italic" font-family="Georgia,serif">Products receive digital life</text>
+              <line x1="80" y1="95" x2="320" y2="95" stroke="#e8c547" stroke-width="0.5" opacity="0.4"/>
+              <rect x="60" y="115" width="280" height="50" rx="8" fill="rgba(13,148,136,0.2)" stroke="#0d9488"/>
+              <text x="200" y="138" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Scan Physical Packaging</text>
+              <text x="200" y="154" text-anchor="middle" font-size="9" fill="#94a3b8">QR · Image Target · Product Code</text>
+              <path d="M200 165 L200 180" stroke="#e8c547" stroke-width="1.5"/>
+              <rect x="60" y="180" width="280" height="50" rx="8" fill="rgba(201,162,39,0.15)" stroke="#c9a227"/>
+              <text x="200" y="203" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Meet Brand Persona · Voice Chat</text>
+              <text x="200" y="219" text-anchor="middle" font-size="9" fill="#94a3b8">Gemini Brain · Inworld Voice · 3D Character</text>
+              <text x="200" y="260" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.4)">Confidential · July 2026 Pilot · axerai.ai</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer"><span>Axerai · Products receive digital life · Confidential</span><span>Page 10</span></div>
+  </div>
+</div>
+
+</div><!-- .doc -->
+</body>
+</html>
