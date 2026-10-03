@@ -572,12 +572,14 @@ export function playQueuedTtsFromUserGesture() {
   deferredTtsJob = null
   pendingHtmlPlay = null
   notifyAudioNeedsTap(false)
-  appleGestureUnlocked = true
   mobileAudioPrimed = true
 
   const { onStart, onEnd, onError } = job.callbacks || {}
   void playBlob(job.blob, {
-    onStart: () => onStart?.(),
+    onStart: () => {
+      appleGestureUnlocked = true
+      onStart?.()
+    },
     onEnd: () => {
       onEnd?.()
       job.resolvePlay?.()
@@ -1164,6 +1166,7 @@ async function playBlobViaHtmlAudio(blob, { onStart, onEnd, onError }) {
     audio.volume = 1
     await audio.play()
     notifyAudioNeedsTap(false)
+    appleGestureUnlocked = true
     setMyraVoiceOutputPath('cloud')
     onStart?.()
   } catch (error) {
@@ -1193,8 +1196,28 @@ async function playBlob(blob, { onStart, onEnd, onError }) {
     await prepareApplePlaybackAfterMic()
   }
 
-  // Web Audio gain can exceed HTMLAudioElement volume=1 (Myra playback boost).
-  if (TTS_PLAYBACK_GAIN > 1) {
+  // iPhone: HTML first (Web Audio often silent / re-blocks autoplay after "unlock").
+  const tryWebAudioFirst = TTS_PLAYBACK_GAIN > 1 && !isAppleMobileBrowser()
+
+  if (isAppleMobileBrowser()) {
+    try {
+      await playBlobViaHtmlAudio(blob, { onStart, onEnd, onError })
+      return
+    } catch (htmlError) {
+      console.warn('[Audio] iPhone HTML TTS failed, trying Web Audio:', htmlError)
+      try {
+        await playBlobViaWebAudio(blob, { onStart, onEnd, onError })
+        return
+      } catch (error) {
+        const name = error instanceof Error ? error.name : 'PlaybackError'
+        throw new Error(
+          `iPhone audio block (${name}) — volume up karo, screen tap karke dubara try karo`,
+        )
+      }
+    }
+  }
+
+  if (tryWebAudioFirst) {
     try {
       await playBlobViaWebAudio(blob, { onStart, onEnd, onError })
       return
@@ -1204,7 +1227,6 @@ async function playBlob(blob, { onStart, onEnd, onError }) {
   }
 
   try {
-    // iPhone: HTMLAudioElement fallback (works with Silent switch better than Web Audio).
     await playBlobViaHtmlAudio(blob, { onStart, onEnd, onError })
   } catch (htmlError) {
     console.warn('[Audio] HTML TTS failed, trying Web Audio:', htmlError)

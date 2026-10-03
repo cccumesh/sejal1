@@ -1890,9 +1890,8 @@ function mapGeminiCallType(reason) {
         return
       }
 
-      const onSpeakStart = persistMyra
-        ? () => queuePersistHistoryEntry('myra', fullResponse)
-        : undefined
+      // Save as soon as Gemini returns — iPhone may defer TTS until Meet Myra tap.
+      if (persistMyra) queuePersistHistoryEntry('myra', fullResponse)
 
       if (myraResponseShouldEndSession(fullResponse)) {
         speakMyraReply(
@@ -1901,12 +1900,11 @@ function mapGeminiCallType(reason) {
             await waitForMyraSpeechToFinish()
             endExperienceRef.current?.()
           },
-          { onSpeakStart },
         )
         return
       }
 
-      speakMyraReply(fullResponse, onSpeechDone, { onSpeakStart })
+      speakMyraReply(fullResponse, onSpeechDone)
     },
     [speakMyraReply],
   )
