@@ -4,6 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # Table name + dashboard path live in repo as defaults — not secrets.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_DASHBOARD_PATH,VITE_SUPABASE_LEDGER_TABLE"
 
 [functions]
   directory = "netlify/functions"
