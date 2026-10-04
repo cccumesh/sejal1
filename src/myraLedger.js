@@ -1748,6 +1748,7 @@ export async function prefetchLedgerMemory(verificationCode) {
       sender: String(senderThread?.device_id ?? '').slice(0, 8) + '…',
       receiver: String(receiverThread?.device_id ?? '').slice(0, 8) + '…',
     })
+    void recordLedgerInsight(verificationCode, 'pair_full', deviceId.slice(0, 16))
     return { allowed: false, reason: 'PAIR_FULL' }
   }
 
@@ -1861,6 +1862,7 @@ export async function startLedgerScan(verificationCode) {
         claimed: claimedDevice.slice(0, 8) + '…',
         you: deviceId.slice(0, 8) + '…',
       })
+      void recordLedgerInsight(verificationCode, 'pair_full', deviceId.slice(0, 16))
       return { rejected: true, reason: 'PAIR_FULL' }
     }
 
@@ -2495,23 +2497,128 @@ export function buildGeminiUsageAnalytics(threads = []) {
   }
 }
 
+const LEDGER_INSIGHTS_SELECT =
+  'id, verification_code, device_id, role, scan_count, conversation, session_summaries, axerai_ai_usage, axerai_voice_usage, ledger_insights'
+
+const LEDGER_INSIGHTS_SELECT_FALLBACK =
+  'id, verification_code, device_id, role, scan_count, conversation, session_summaries, axerai_ai_usage, axerai_voice_usage'
+
+export function emptyLedgerInsightCounts() {
+  return {
+    verify_fail_photo_spoof: 0,
+    verify_fail_bad_frame: 0,
+    verify_fail_no_richera: 0,
+    verify_fail_other: 0,
+    verify_fail_glitch: 0,
+    pair_full_attempt: 0,
+  }
+}
+
+/** Parse `ledger_insights` lines written by recordLedgerInsight. */
+export function parseLedgerInsights(raw) {
+  const counts = emptyLedgerInsightCounts()
+  for (const line of String(raw ?? '').split('\n')) {
+    const trimmed = line.trim()
+    const match = trimmed.match(/^insight:([^|]+)\|([^|]*)\|/)
+    if (!match) continue
+    const kind = match[1].trim()
+    const detail = match[2].trim()
+    if (kind === 'verify_fail') {
+      if (detail === 'PHOTO_SPOOF') counts.verify_fail_photo_spoof += 1
+      else if (detail === 'BAD_FRAME') counts.verify_fail_bad_frame += 1
+      else if (detail === 'NO_RICHERA') counts.verify_fail_no_richera += 1
+      else counts.verify_fail_other += 1
+    } else if (kind === 'verify_glitch') {
+      counts.verify_fail_glitch += 1
+    } else if (kind === 'pair_full') {
+      counts.pair_full_attempt += 1
+    }
+  }
+  return counts
+}
+
+function mergeLedgerInsightCounts(into, from) {
+  for (const key of Object.keys(into)) {
+    into[key] += Number(from[key] ?? 0)
+  }
+}
+
+/** Security / verify metrics — stored on sender row for the product code. */
+export async function recordLedgerInsight(verificationCode, kind, detail = '') {
+  if (!supabase || !verificationCode || !kind) return false
+
+  const code = String(verificationCode).trim()
+  const insightKind = String(kind).trim()
+  const insightDetail = String(detail ?? '').trim().slice(0, 120)
+  const line = `insight:${insightKind}|${insightDetail}|${new Date().toISOString()}`
+
+  await ensureThreadRows(code)
+
+  const { data: sender, error: readError } = await supabase
+    .from(LEDGER_TABLE)
+    .select('id, ledger_insights')
+    .eq('verification_code', code)
+    .eq('role', 'sender')
+    .maybeSingle()
+
+  if (readError) {
+    if (!/ledger_insights/i.test(readError.message)) {
+      console.warn('[Ledger] insight read failed:', readError.message)
+    }
+    return false
+  }
+
+  if (!sender?.id) return false
+
+  const previous = String(sender.ledger_insights ?? '').trim()
+  const next = previous ? `${previous}\n${line}` : line
+
+  const { error: updateError } = await supabase
+    .from(LEDGER_TABLE)
+    .update({ ledger_insights: next })
+    .eq('id', sender.id)
+
+  if (updateError) {
+    if (!/ledger_insights/i.test(updateError.message)) {
+      console.warn('[Ledger] insight save failed:', updateError.message)
+    }
+    return false
+  }
+
+  if (cachedSenderThread?.id === sender.id) {
+    cachedSenderThread = { ...cachedSenderThread, ledger_insights: next }
+  }
+
+  logLedger('insight recorded', { code, kind: insightKind, detail: insightDetail })
+  return true
+}
+
 export async function fetchDashboardThreads(verificationCode = 'R') {
   if (!supabase) return []
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(LEDGER_TABLE)
-    .select(
-      'id, verification_code, device_id, role, scan_count, conversation, session_summaries, axerai_ai_usage, axerai_voice_usage',
-    )
+    .select(LEDGER_INSIGHTS_SELECT)
     .eq('verification_code', verificationCode)
     .order('role', { ascending: true })
+
+  if (error && /ledger_insights/i.test(error.message)) {
+    ;({ data, error } = await supabase
+      .from(LEDGER_TABLE)
+      .select(LEDGER_INSIGHTS_SELECT_FALLBACK)
+      .eq('verification_code', verificationCode)
+      .order('role', { ascending: true }))
+  }
 
   if (error) {
     console.warn('[Ledger] dashboard fetch failed:', error.message)
     return []
   }
 
-  return data ?? []
+  return (data ?? []).map((row) => ({
+    ...row,
+    ledger_insights: row.ledger_insights ?? '',
+  }))
 }
 
 /** Parse conversation text into bubble rows for dashboard UI. */
@@ -2759,6 +2866,20 @@ export function buildDashboardAnalytics(threads = []) {
   const lastSession = sessions[sessions.length - 1]
   const lastScanDate = lastSession?.date || lastSession?.ended || ''
 
+  const insightTotals = emptyLedgerInsightCounts()
+  for (const thread of threads) {
+    if (thread.role !== 'sender') continue
+    mergeLedgerInsightCounts(insightTotals, parseLedgerInsights(thread.ledger_insights))
+  }
+
+  const verifyFailPhotoSpoof = insightTotals.verify_fail_photo_spoof
+  const verifyFailOther =
+    insightTotals.verify_fail_bad_frame +
+    insightTotals.verify_fail_no_richera +
+    insightTotals.verify_fail_other +
+    insightTotals.verify_fail_glitch
+  const pairFullAttempts = insightTotals.pair_full_attempt
+
   return {
     totalScans,
     totalTalkTimeSeconds,
@@ -2777,6 +2898,10 @@ export function buildDashboardAnalytics(threads = []) {
     discoveryQuotes,
     lastScanDate,
     sessions,
+    insightTotals,
+    verifyFailPhotoSpoof,
+    verifyFailOther,
+    pairFullAttempts,
   }
 }
 

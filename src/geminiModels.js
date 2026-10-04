@@ -4,6 +4,17 @@ export const GEMINI_LITE_PRIMARY = 'gemini-3.5-flash-lite'
 export const GEMINI_LITE_FALLBACK = 'gemini-3.1-flash-lite'
 export const GEMINI_FLASH_PRIMARY = 'gemini-3.6-flash'
 
+/** Full Flash (3.6) — one attempt, then fall through to flash-lite chain. */
+export const GEMINI_RETRIES_FULL_FLASH = 1
+export const GEMINI_RETRIES_LITE = 2
+
+export function geminiRetriesForModel(modelName) {
+  if (String(modelName ?? '').trim() === GEMINI_FLASH_PRIMARY) {
+    return GEMINI_RETRIES_FULL_FLASH
+  }
+  return GEMINI_RETRIES_LITE
+}
+
 /** Lite chain — verify, post-verify opening, sender chat, summary, receiver fallback. */
 export const GEMINI_LITE_CHAIN = [GEMINI_LITE_PRIMARY, GEMINI_LITE_FALLBACK]
 

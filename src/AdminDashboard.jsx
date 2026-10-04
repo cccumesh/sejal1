@@ -388,6 +388,23 @@ export default function AdminDashboard() {
             </strong>
             <span className="admin-dash__stat-hint">Sender + receiver devices</span>
           </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">Photo / screen verify fails</span>
+            <strong className="admin-dash__stat-value">
+              {analytics.verifyFailPhotoSpoof ?? 0}
+            </strong>
+            <span className="admin-dash__stat-hint">PHOTO_SPOOF — card on phone/screen</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">Other verify fails</span>
+            <strong className="admin-dash__stat-value">{analytics.verifyFailOther ?? 0}</strong>
+            <span className="admin-dash__stat-hint">Blur, no RICHERA, glitch</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">3rd phone attempts</span>
+            <strong className="admin-dash__stat-value">{analytics.pairFullAttempts ?? 0}</strong>
+            <span className="admin-dash__stat-hint">PAIR_FULL — already 2 devices</span>
+          </article>
           <article className="admin-dash__stat-card admin-dash__stat-card--wide">
             <span className="admin-dash__stat-label">Last scan</span>
             <strong className="admin-dash__stat-value admin-dash__stat-value--small">

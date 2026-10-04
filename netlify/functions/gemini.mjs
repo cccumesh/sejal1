@@ -1,7 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const DEFAULT_MODELS = ['gemini-3.1-flash-lite']
-const RETRIES_PER_MODEL = 2
+const GEMINI_FLASH_PRIMARY = 'gemini-3.6-flash'
+const RETRIES_LITE = 2
+
+function retriesForModel(modelName) {
+  return modelName === GEMINI_FLASH_PRIMARY ? 1 : RETRIES_LITE
+}
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -123,7 +128,8 @@ export default async (request) => {
   let lastError = null
 
   for (const modelName of models) {
-    for (let attempt = 1; attempt <= RETRIES_PER_MODEL; attempt += 1) {
+    const maxAttempts = retriesForModel(modelName)
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const result = await callGeminiOnce({
           apiKey,
@@ -149,7 +155,7 @@ export default async (request) => {
         }
 
         if (isModelUnavailable(message)) break
-        if (isRetryable(message) && attempt < RETRIES_PER_MODEL) continue
+        if (isRetryable(message) && attempt < maxAttempts) continue
         break
       }
     }

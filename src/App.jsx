@@ -30,6 +30,7 @@ import {
 } from './myraPrompt.js'
 import { MyraStaticSession } from './myraStaticSession.jsx'
 import {
+  geminiRetriesForModel,
   MYRA_CHAT_LITE_CHAIN,
   myraGenerationConfig,
   resolveMyraChatModels,
@@ -60,7 +61,12 @@ import {
 import { MyraModel, tickMyraMixer, MYRA_MODEL_PATH } from './myraModel.js'
 import { mountTargetAnchorVideo } from './myraTargetVideo.js'
 import { loadAxeraiExperienceAssets } from './axeraiAssets.js'
-import { isGeminiVerifyConfigured, VERIFY_FAIL_REASON, verifyRicheraProduct } from './myraVerify.js'
+import {
+  isGeminiVerifyConfigured,
+  RICHERA_VERIFICATION_CODE,
+  VERIFY_FAIL_REASON,
+  verifyRicheraProduct,
+} from './myraVerify.js'
 import { startSpeechLipSync, stopSpeechLipSync } from './myraLipSync.js'
 import { usageFromResponse } from './geminiUsage.js'
 import {
@@ -77,6 +83,7 @@ import {
   getLedgerSessionInfo,
   isLedgerConfigured,
   isLedgerScanActive,
+  recordLedgerInsight,
   ledgerNeedsSummaryBackfill,
   prefetchLedgerMemory,
   prepareBrowserMemoryForSession,
@@ -136,7 +143,6 @@ function logAxeraiBuildConfig() {
     )
   }
 }
-const GEMINI_RETRIES_PER_MODEL = 2
 const MINDAR_TARGET = '/targets.mind'
 const INTRO_LOADING_BG = '/images/richera-loading.png'
 /** Roman Hinglish transcript — hi-IN returns Devanagari (अ आ) on most phones */
@@ -1754,8 +1760,9 @@ function mapGeminiCallType(reason) {
     for (let modelIndex = 0; modelIndex < models.length; modelIndex += 1) {
       const modelName = models[modelIndex]
       const isFallback = modelIndex > 0
+      const maxAttempts = geminiRetriesForModel(modelName)
 
-      for (let attempt = 1; attempt <= GEMINI_RETRIES_PER_MODEL; attempt += 1) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
           const model = client.getGenerativeModel({
             model: modelName,
@@ -1789,19 +1796,16 @@ function mapGeminiCallType(reason) {
           lastError = error
           const msg = error?.message ?? String(error)
           const retryable = isGeminiRetryableError(error)
-          const canRetry = retryable && attempt < GEMINI_RETRIES_PER_MODEL
+          const canRetry = retryable && attempt < maxAttempts
 
           if (canRetry) {
             console.info(
-              `[Gemini] ${modelName} busy (${msg.slice(0, 80)}…) — retry ${attempt + 1}/${GEMINI_RETRIES_PER_MODEL}`,
+              `[Gemini] ${modelName} busy (${msg.slice(0, 80)}…) — retry ${attempt + 1}/${maxAttempts}`,
             )
           } else if (isFallback || modelIndex < models.length - 1) {
             console.info(`[Gemini] ${modelName} unavailable — trying next model`)
           } else {
-            console.warn(
-              `[Gemini] ${modelName} attempt ${attempt}/${GEMINI_RETRIES_PER_MODEL} failed:`,
-              msg,
-            )
+            console.warn(`[Gemini] ${modelName} attempt ${attempt}/${maxAttempts} failed:`, msg)
           }
 
           if (isGeminiFatalError(error)) throw error
@@ -3137,6 +3141,11 @@ function mapGeminiCallType(reason) {
           verifyFailCountRef.current += 1
           scanSnapshotRef.current = null
           const situation = verifyFailSituation(failReason)
+          void recordLedgerInsight(
+            verificationCode || RICHERA_VERIFICATION_CODE,
+            'verify_fail',
+            String(failReason || 'UNKNOWN'),
+          )
           setForceShowMyra(true)
           setVerifyFailNote(verifyFailUserNote(situation))
           speakMyraErrorLine(situation)
@@ -3145,6 +3154,7 @@ function mapGeminiCallType(reason) {
       } catch (err) {
         if (gen !== verifyGenerationRef.current) return
         console.warn('[Verify] anchor snap failed:', err)
+        void recordLedgerInsight(RICHERA_VERIFICATION_CODE, 'verify_glitch', 'anchor_snap')
         setForceShowMyra(true)
         setVerifyFailNote(verifyFailUserNote(MYRA_ERROR_SITUATIONS.SCAN_GLITCH))
         speakMyraErrorLine(MYRA_ERROR_SITUATIONS.SCAN_GLITCH)

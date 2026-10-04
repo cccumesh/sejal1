@@ -18,6 +18,7 @@ create table if not exists public.axera_ledger_threads (
   session_summaries text not null default '',
   axerai_ai_usage text not null default '',
   axerai_voice_usage text not null default '',
+  ledger_insights text not null default '',
   unique (verification_code, role)
 );
 
