@@ -85,6 +85,7 @@ import {
   startLedgerScan,
   syncLedgerMemoryAfterExit,
 } from './myraLedger.js'
+import { syncExperienceViewBucket } from './myraExperienceView.js'
 import {
   createLiveMicTranscriber,
   createPttTranscriber,
@@ -3253,6 +3254,32 @@ function mapGeminiCallType(reason) {
     window.addEventListener('pagehide', saveLedgerOnPageHide)
     return () => window.removeEventListener('pagehide', saveLedgerOnPageHide)
   }, [])
+
+  useEffect(() => {
+    if (introVisible || exitClosing) {
+      syncExperienceViewBucket(null)
+      return () => syncExperienceViewBucket(null)
+    }
+
+    let bucket = null
+    if (isVerified) {
+      if (!targetVideoDone) bucket = 'overview'
+      else if (experienceViewMode === 'vr') bucket = 'vr'
+      else bucket = 'ar'
+    } else if (showMindAR && experienceViewMode === 'ar') {
+      bucket = 'ar'
+    }
+
+    syncExperienceViewBucket(bucket)
+    return () => syncExperienceViewBucket(null)
+  }, [
+    introVisible,
+    exitClosing,
+    isVerified,
+    targetVideoDone,
+    experienceViewMode,
+    showMindAR,
+  ])
 
   useEffect(() => {
     if (introVisible || !cameraInitReady) return

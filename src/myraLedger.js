@@ -1,3 +1,8 @@
+import {
+  parseExperienceViewSecondsFromFooter,
+  resetExperienceViewTotals,
+  takeExperienceViewTotals,
+} from './myraExperienceView.js'
 import { isSupabaseConfigured, supabase, LEDGER_TABLE } from './supabaseClient.js'
 import { isOfflineMyraFallback } from './myraErrorFallback.js'
 import { parseBrandProductPraise, parseAxeraiPraiseFromSummary, parseDiscoveryFromSummary, summarizeSessionDialogue, buildLocalStorySummary, extractStoryFromSummary, extractDashboardQuoteFromSummary, enrichSessionSummary, repairSessionSummaryFromDialogue, sanitizeSummaryForMemory, shouldSkipSessionSummary, hasUserSpeechInDialogue, extractSenderQuotesFromSummary, extractSenderLinesFromDialogue, extractReceiverQuotesFromSummary, buildEnglishQuotePreserveHint, MYRA_LEDGER_READING_GUIDE, RECIPIENT_DELIVERY_CONCEPT } from './myraSummarize.js'
@@ -686,13 +691,25 @@ function sanitizeSessionDialogue(dialogue) {
 }
 
 /** Times only in conversation — summaries go in session_summaries column. */
-function buildSessionConversationFooter({ scanNumber, startedAt, endedAt, durationSeconds, praise }) {
+function buildSessionConversationFooter({
+  scanNumber,
+  startedAt,
+  endedAt,
+  durationSeconds,
+  praise,
+  viewTimes,
+}) {
   const lines = [
     `--- session ${scanNumber} end ---`,
     `session-started: ${formatLedgerWhen(startedAt)}`,
     `session-ended: ${formatLedgerWhen(endedAt)}`,
     `session-duration: ${formatSessionDuration(durationSeconds)}`,
   ]
+  if (viewTimes?.arSeconds > 0) lines.push(`session-view-ar-seconds: ${viewTimes.arSeconds}`)
+  if (viewTimes?.vrSeconds > 0) lines.push(`session-view-vr-seconds: ${viewTimes.vrSeconds}`)
+  if (viewTimes?.overviewSeconds > 0) {
+    lines.push(`session-view-overview-seconds: ${viewTimes.overviewSeconds}`)
+  }
   if (praise?.detected && praise.quote) {
     lines.push(`session-praise: "${praise.quote}"`)
   }
@@ -1872,6 +1889,7 @@ export async function startLedgerScan(verificationCode) {
     }
 
     activeThreadId = existing.id
+    resetExperienceViewTotals()
     await appendSessionMarker(`--- session ${scanNumber} start ---`)
     rebuildLedgerMemoryText()
     logLedger(`Scan ${scanNumber} resumed`, { code: verificationCode, threadId: activeThreadId, role: roleKey })
@@ -1901,6 +1919,7 @@ export async function startLedgerScan(verificationCode) {
 
   activeThreadId = data.id
   activeScanNumber = 1
+  resetExperienceViewTotals()
   await appendSessionMarker('--- session 1 start ---')
   logLedger('Thread created', { code: verificationCode, threadId: activeThreadId, role: roleKey })
   return { scanId: activeThreadId, scanNumber: 1 }
@@ -2061,6 +2080,7 @@ export async function finishLedgerScan(options = {}) {
           endedAt,
           durationSeconds,
           praise,
+          viewTimes: takeExperienceViewTotals(),
         })
 
     const conversationWithFooter = footer
@@ -2612,6 +2632,7 @@ export function parseSessionRecordsFromConversation(conversation, roleKey = 'sen
     const durationText = footer.match(/^session-duration:\s*(.+)$/m)?.[1]?.trim() ?? ''
     const praiseMatch = footer.match(/^session-praise:\s*"(.*)"\s*$/m)
     const praiseQuote = praiseMatch?.[1]?.trim() ?? ''
+    const viewTimes = parseExperienceViewSecondsFromFooter(footer)
     const userLines = parseConversationLines(dialogue)
       .filter((line) => line.speaker === userSpeaker)
       .map((line) => line.text)
@@ -2626,6 +2647,9 @@ export function parseSessionRecordsFromConversation(conversation, roleKey = 'sen
       durationSeconds: parseDurationToSeconds(durationText),
       praiseDetected: Boolean(praiseQuote),
       praiseQuote,
+      arViewSeconds: viewTimes.arSeconds,
+      vrViewSeconds: viewTimes.vrSeconds,
+      overviewViewSeconds: viewTimes.overviewSeconds,
       userSaid: userLines.join(' | '),
     })
   }
@@ -2669,6 +2693,9 @@ export function buildDashboardAnalytics(threads = []) {
         discoveryDetected: row.discoveryDetected || existing.discoveryDetected,
         discoveryQuote: row.discoveryQuote || existing.discoveryQuote || '',
         durationSeconds: row.durationSeconds || existing.durationSeconds || 0,
+        arViewSeconds: row.arViewSeconds || existing.arViewSeconds || 0,
+        vrViewSeconds: row.vrViewSeconds || existing.vrViewSeconds || 0,
+        overviewViewSeconds: row.overviewViewSeconds || existing.overviewViewSeconds || 0,
         date: row.date || existing.date || existing.ended || '',
       })
     }
@@ -2685,6 +2712,22 @@ export function buildDashboardAnalytics(threads = []) {
 
   const totalScans = threads.reduce((sum, thread) => sum + (thread.scan_count ?? 0), 0)
   const totalTalkTimeSeconds = sessions.reduce((sum, row) => sum + (row.durationSeconds ?? 0), 0)
+  const senderTalkTimeSeconds = sessions
+    .filter((row) => row.threadRole === 'sender')
+    .reduce((sum, row) => sum + (row.durationSeconds ?? 0), 0)
+  const receiverTalkTimeSeconds = sessions
+    .filter((row) => row.threadRole === 'receiver')
+    .reduce((sum, row) => sum + (row.durationSeconds ?? 0), 0)
+  const senderScanCount =
+    threads.find((thread) => thread.role === 'sender')?.scan_count ?? 0
+  const receiverScanCount =
+    threads.find((thread) => thread.role === 'receiver')?.scan_count ?? 0
+  const totalArViewSeconds = sessions.reduce((sum, row) => sum + (row.arViewSeconds ?? 0), 0)
+  const totalVrViewSeconds = sessions.reduce((sum, row) => sum + (row.vrViewSeconds ?? 0), 0)
+  const totalOverviewViewSeconds = sessions.reduce(
+    (sum, row) => sum + (row.overviewViewSeconds ?? 0),
+    0,
+  )
   const positiveCount = sessions.filter((row) => row.brandPraiseQuote || row.praiseQuote).length
   const axeraiPraiseCount = sessions.filter((row) => row.axeraiPraiseQuote).length
   const brandPraiseQuotes = sessions
@@ -2719,6 +2762,13 @@ export function buildDashboardAnalytics(threads = []) {
   return {
     totalScans,
     totalTalkTimeSeconds,
+    senderTalkTimeSeconds,
+    receiverTalkTimeSeconds,
+    senderScanCount,
+    receiverScanCount,
+    totalArViewSeconds,
+    totalVrViewSeconds,
+    totalOverviewViewSeconds,
     positiveCount,
     axeraiPraiseCount,
     praiseQuotes,

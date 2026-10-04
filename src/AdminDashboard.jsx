@@ -37,6 +37,17 @@ function roleLabel(role) {
   return role || '—'
 }
 
+function scanViewModeSummary(row) {
+  const ar = row.arViewSeconds ?? 0
+  const vr = row.vrViewSeconds ?? 0
+  const overview = row.overviewViewSeconds ?? 0
+  const parts = []
+  if (ar > 0) parts.push(`AR ${formatDashboardDuration(ar)}`)
+  if (vr > 0) parts.push(`VR ${formatDashboardDuration(vr)}`)
+  if (overview > 0) parts.push(`Intro ${formatDashboardDuration(overview)}`)
+  return parts.length ? parts.join(' · ') : '—'
+}
+
 function bubbleLabel(speaker) {
   if (speaker === 'session-end') return '—'
   if (speaker === 'session-started') return 'Session started'
@@ -309,10 +320,46 @@ export default function AdminDashboard() {
             <strong className="admin-dash__stat-value">{analytics.totalScans}</strong>
           </article>
           <article className="admin-dash__stat-card">
-            <span className="admin-dash__stat-label">Talk time</span>
+            <span className="admin-dash__stat-label">Talk time (code total)</span>
             <strong className="admin-dash__stat-value">
               {formatDashboardDuration(analytics.totalTalkTimeSeconds)}
             </strong>
+            <span className="admin-dash__stat-hint">Sender + receiver sessions</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">Sender talk time</span>
+            <strong className="admin-dash__stat-value">
+              {formatDashboardDuration(analytics.senderTalkTimeSeconds ?? 0)}
+            </strong>
+            <span className="admin-dash__stat-hint">{analytics.senderScanCount ?? 0} scans</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">Receiver talk time</span>
+            <strong className="admin-dash__stat-value">
+              {formatDashboardDuration(analytics.receiverTalkTimeSeconds ?? 0)}
+            </strong>
+            <span className="admin-dash__stat-hint">{analytics.receiverScanCount ?? 0} scans</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">AR view time</span>
+            <strong className="admin-dash__stat-value">
+              {formatDashboardDuration(analytics.totalArViewSeconds ?? 0)}
+            </strong>
+            <span className="admin-dash__stat-hint">Camera + card scan</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">VR mode time</span>
+            <strong className="admin-dash__stat-value">
+              {formatDashboardDuration(analytics.totalVrViewSeconds ?? 0)}
+            </strong>
+            <span className="admin-dash__stat-hint">Full-screen Myra</span>
+          </article>
+          <article className="admin-dash__stat-card">
+            <span className="admin-dash__stat-label">Intro video</span>
+            <strong className="admin-dash__stat-value">
+              {formatDashboardDuration(analytics.totalOverviewViewSeconds ?? 0)}
+            </strong>
+            <span className="admin-dash__stat-hint">After verify, before AR</span>
           </article>
           <button
             type="button"
@@ -348,6 +395,14 @@ export default function AdminDashboard() {
             </strong>
           </article>
         </section>
+
+        {!analytics.totalArViewSeconds &&
+        !analytics.totalVrViewSeconds &&
+        !analytics.totalOverviewViewSeconds ? (
+          <p className="admin-dash__muted admin-dash__panel-note">
+            AR/VR time purane scans me save nahi hua — naye scan ke baad yahan dikhega (session footer).
+          </p>
+        ) : null}
 
         <CollapsibleDashPanel
           title={`Axerai AI tokens — code ${code}`}
@@ -514,6 +569,7 @@ export default function AdminDashboard() {
                     <th>Role</th>
                     <th>Date</th>
                     <th>Duration</th>
+                    <th>AR / VR</th>
                     <th>Pasand</th>
                     <th>Quote</th>
                   </tr>
@@ -533,6 +589,7 @@ export default function AdminDashboard() {
                       </td>
                       <td>{row.date || '—'}</td>
                       <td>{row.durationText || formatDashboardDuration(row.durationSeconds)}</td>
+                      <td className="admin-dash__muted">{scanViewModeSummary(row)}</td>
                       <td>
                         {row.brandPraiseQuote || row.praiseQuote || row.axeraiPraiseQuote ? (
                           <span className="admin-dash__yes">✓ Haan</span>
