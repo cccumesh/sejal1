@@ -32,7 +32,7 @@ import { MyraStaticSession } from './myraStaticSession.jsx'
 import {
   geminiRetriesForModel,
   MYRA_CHAT_LITE_CHAIN,
-  myraGenerationConfig,
+  myraChatGenerationConfig,
   resolveMyraChatModels,
 } from './geminiModels.js'
 import {
@@ -1718,15 +1718,20 @@ function mapGeminiCallType(reason) {
 }
 
   const askGemini = useCallback(async (userPrompt, options = {}) => {
-    const { models = MYRA_CHAT_LITE_CHAIN, tier = 'lite', reason = '' } = options
+    const {
+      models = MYRA_CHAT_LITE_CHAIN,
+      tier = 'lite',
+      reason = '',
+      receiverTurnBucket = '',
+    } = options
 
-    const generationConfig = myraGenerationConfig(tier)
+    const generationConfig = myraChatGenerationConfig(tier, { receiverTurnBucket })
     const systemInstruction = getMyraSystemPrompt({
       ttsAudioTags: isInworldTtsConfigured(),
     })
 
     console.info(
-      `[Gemini] Myra chat tier=${tier} reason=${reason || 'default'} chain=${models.join(' → ')}`,
+      `[Gemini] Myra chat tier=${tier} reason=${reason || 'default'}${receiverTurnBucket ? ` bucket=${receiverTurnBucket}` : ''} chain=${models.join(' → ')}`,
     )
 
     if (USE_API_PROXY) {
@@ -1956,12 +1961,14 @@ function mapGeminiCallType(reason) {
 
         const route = resolveMyraChatModels({
           sessionRole: getSessionRole(),
+          userText: trimmed,
         })
 
         const fullResponse = await askGemini(prompt, {
           models: route.models,
           tier: route.tier,
           reason: route.reason,
+          receiverTurnBucket: route.receiverTurnBucket,
         })
         incrementMyraChatTurn()
         const cleanResponse = prepareMyraSpeechText(fullResponse, {

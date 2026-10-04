@@ -1,3 +1,4 @@
+import { classifyReceiverTurnBucket, RECEIVER_TURN_DEEP, RECEIVER_TURN_SHORT } from './geminiModels.js'
 import { isInworldTtsConfigured } from './elevenLabsTts.js'
 import {
   buildMyraConceptLibraryBlock,
@@ -463,9 +464,23 @@ function detectReplyLengthMode(_userText, sessionRole = '') {
   const role = String(sessionRole ?? '').trim().toUpperCase()
 
   if (role === 'RECEIVER') {
+    const bucket = classifyReceiverTurnBucket(userText)
+    if (bucket === RECEIVER_TURN_SHORT) {
+      return {
+        mode: 'RECIPIENT_SHORT_MIRROR',
+        label:
+          'RECIPIENT SHORT TURN — mirror USER_JUST_SAID (~15–60 words). One reaction beat; NO story dump; max one short ?. Do not force extra lore.',
+      }
+    }
+    if (bucket === RECEIVER_TURN_DEEP) {
+      return {
+        mode: 'RECIPIENT_DEEP',
+        label: `RECIPIENT DEPTH — user opened up (~80–${RECIPIENT_WORD_LIMIT_DETAIL} words ok). One arc; do not pad; do not cut emotional answer short.`,
+      }
+    }
     return {
-      mode: 'RECIPIENT_GOSSIP_SLICE',
-      label: `RECIPIENT FAIRY — soft targets welcome ~${RECIPIENT_WORD_LIMIT_WELCOME}, mid ~${RECIPIENT_WORD_LIMIT_MIDCHAT}, depth ~${RECIPIENT_WORD_LIMIT_DETAIL} — YOU adjust to content. One digest beat + exactly ONE ?.`,
+      mode: 'RECIPIENT_NORMAL',
+      label: `RECIPIENT MID — soft ~${RECIPIENT_WORD_LIMIT_MIDCHAT} words; one digest beat + one ?; no essay dump.`,
     }
   }
 
