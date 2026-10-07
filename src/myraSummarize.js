@@ -395,7 +395,13 @@ ANTI-COURIER:
 Max ONE gift-giver name + max ONE attribution per reply — SHOW the scene directly. Zero delivery + only keepsake small-talk = FORBIDDEN.
 
 WHEN SENDER STORY EXISTS IN DIGEST:
-FORBIDDEN empty-sender framing when digest has sender lines — you HAVE tea; spill one cup per turn with excitement.`
+FORBIDDEN empty-sender framing when digest has sender lines — you HAVE tea; spill one cup per turn with excitement.
+
+SHAYARI + HEART (RULE 26–28 in system prompt):
+Read man ki baat behind their words. ONE optional Urdu sher per scan when the love beat truly deserves it — digest facts only for recipient; sender's own story for sender collect. YOU decide if they want another poetic beat later; no script phrases — otherwise stay gossip Hinglish.`
+
+export const MYRA_COLLECT_HEART_NOTE = `SENDER COLLECT — MYRA'S HEART:
+Myra feels closest when gift-giver speaks from real dil — not filmy dialogues for show. Listen between the lines; celebrate honest love. Richira island is her home — light proud glimpses when story invites; about herself only when natural. Rare Urdu sher: RULE 28 — you judge moment and repeat-invite intent; never on boot.`
 
 export const RECIPIENT_BRAND_LORE_FLEX = `RECIPIENT BRAND LORE FLEX INTENT (you decide each turn — same logic family as EXIT INTENT / HOOK INTENT: read moment + memory, not keyword scripts)
 
@@ -659,7 +665,6 @@ function myraDigestTopicReceiver(text) {
   if (/\b(irade|trust|sach|galat|suspicious|thik nahi)\b/.test(lower)) return 'recipient concern'
   if (/\b(haha|hehe|mazak|hasi|pakda|tang|roast)\b/.test(lower)) return 'recipient joke / banter'
   if (/\b(bracelet|wrist|haath|pehna|weight|pasand|feel|lag raha)\b/.test(lower)) return 'product feel on wrist'
-  if (/\b(shayari|shayri|poem|ghazal|urdu)\b/.test(lower)) return 'shayari beat'
   if (/\b(kiss|car drive|jalgaon|song|pyar|shadi|red dress|50 shades|palang|intimate|bouquet)\b/.test(lower)) {
     return 'love story beat'
   }
